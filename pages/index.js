@@ -760,6 +760,30 @@ export default function Home() {
   const tabStyle = (t) => ({ padding:'7px 14px', borderRadius:99, fontSize:13, fontWeight:500, border:`1px solid ${tab===t?S.accent:S.border}`, background:tab===t?S.accent:S.surface, color:tab===t?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' });
 
   // ── 코디 카드 공통 컴포넌트 ───────────────────────
+  const colorToCSS = (colorText) => {
+    if (!colorText) return null;
+    const c = colorText.toLowerCase().replace(/\s/g,'');
+    const map = {
+      '블랙':'#1A1A1A','black':'#1A1A1A',
+      '화이트':'#F5F5F5','white':'#F5F5F5','화이트오트밀':'#E8E0D0','오트밀':'#E8E0D0',
+      '그레이':'#9E9E9E','grey':'#9E9E9E','gray':'#9E9E9E','차콜':'#4A4A4A','charcoal':'#4A4A4A',
+      '네이비':'#1A237E','navy':'#1A237E','블루':'#1565C0','blue':'#1565C0','스카이블루':'#87CEEB',
+      '브라운':'#5D4037','brown':'#5D4037','카키':'#8D6E63','베이지':'#D7BC8D','beige':'#D7BC8D',
+      '크림':'#FFFDD0','아이보리':'#FFFFF0','ivory':'#FFFFF0',
+      '레드':'#C62828','red':'#C62828','버건디':'#6A1B2A','와인':'#7B1E3A',
+      '그린':'#2E7D32','green':'#2E7D32','올리브':'#827717','카키그린':'#556B2F',
+      '옐로우':'#F9A825','yellow':'#F9A825','머스타드':'#E6A817',
+      '핑크':'#EC407A','pink':'#EC407A','라이트핑크':'#F8BBD0',
+      '퍼플':'#6A1B9A','purple':'#6A1B9A','라벤더':'#B39DDB',
+      '오렌지':'#E64A19','orange':'#E64A19','코랄':'#FF6F61',
+      '샌드':'#C2B280','sand':'#C2B280',
+    };
+    for (const [k,v] of Object.entries(map)) {
+      if (c.includes(k)) return v;
+    }
+    return null;
+  };
+
   const weatherEmoji = (w) => {
     if (!w) return '';
     const c = w.condition||'';
@@ -1252,11 +1276,21 @@ export default function Home() {
                           {/* 이미지 영역 - 항상 고정 크기 */}
                           <div style={{ width:52, height:52, borderRadius:6, flexShrink:0, border:`1px solid ${S.border}`, overflow:'hidden', background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', position:'relative' }}>
                             {item.image ? (
-                              <img src={item.image} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt=""/>
+                              <>
+                                <img src={item.image} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt=""/>
+                                {item.color && (() => { const css = colorToCSS(item.color); return css ? (
+                                  <div style={{ position:'absolute', bottom:3, left:'50%', transform:'translateX(-50%)', width:10, height:10, borderRadius:'50%', background:css, border:'1.5px solid rgba(255,255,255,0.8)', boxShadow:'0 1px 3px rgba(0,0,0,0.3)' }}/>
+                                ) : null; })()}
+                              </>
                             ) : (
                               <>
                                 <div style={{ fontSize:16 }}>{CAT_EMOJI[item.category]||'👔'}</div>
-                                {item.color && <div style={{ fontSize:8, color:S.sub, textAlign:'center', padding:'0 2px', lineHeight:1.2, marginTop:2, maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.color}</div>}
+                                {item.color && (() => { const css = colorToCSS(item.color); return (
+                                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:1, marginTop:2 }}>
+                                    {css && <div style={{ width:10, height:10, borderRadius:'50%', background:css, border:`1px solid ${S.border}` }}/>}
+                                    <div style={{ fontSize:7, color:S.hint, textAlign:'center', maxWidth:46, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.color}</div>
+                                  </div>
+                                ); })()}
                               </>
                             )}
                           </div>
