@@ -117,7 +117,15 @@ export default function Home() {
       const clothText = cats.map(cat => {
         const items = clothes.filter(c => c.category===cat);
         if (!items.length) return '';
-        return '['+cat+'] '+items.map(function(c){ return c.name+'('+c.temp_min+'~'+c.temp_max+'C)'; }).join(', ');
+        const today = new Date();
+        return '['+cat+'] '+items.map(function(c){
+          if (c.last_worn) {
+            const worn = new Date(c.last_worn);
+            const diffDays = Math.floor((today - worn) / 86400000);
+            if (diffDays < 2) return c.name+'(착용불가-'+diffDays+'일전착용)';
+          }
+          return c.name+'('+c.temp_min+'~'+c.temp_max+'C)';
+        }).join(', ');
       }).filter(Boolean).join('\n');
       const weatherText = wList.map(w => `- ${w.time} [${w.isIndoor?'실내':'실외'}] ${w.city}: ${w.temp}°C`).join('\n');
       const minTemp = Math.min(...wList.filter(w=>!w.isIndoor).map(w=>w.feels_like).filter(Boolean));
@@ -127,7 +135,7 @@ export default function Home() {
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:1000,
           system:'패션 스타일리스트. 옷장과 날씨로 최적 코디를 JSON으로만 추천. 다른 텍스트 없음.',
-          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n실외 최저체감: ${minTemp}°C\n${hasRain?'우천 가능':''}\n일정: ${occasion}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 실내 체류 많으면 이너 중요. 탈착 쉬운 아우터 우선. 선호도 높은 옷(★★★★★, ★★★★)을 우선 추천하되 코디 조화도 함께 고려.\n\n{"outfits":[{"outer":"이름또는null","top":"이름","bottom":"이름또는null","reason":"이유"}]}` }]
+          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n실외 최저체감: ${minTemp}°C\n${hasRain?'우천 가능':''}\n일정: ${occasion}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 실내 체류 많으면 이너 중요. 탈착 쉬운 아우터 우선. 선호도 높은 옷 우선 추천. (착용불가) 표시된 옷은 절대 추천하지 말 것.\n\n{"outfits":[{"outer":"이름또는null","top":"이름","bottom":"이름또는null","reason":"이유"}]}` }]
         })
       });
       const data = await r.json();
@@ -328,7 +336,15 @@ export default function Home() {
       const clothText = cats.map(cat => {
         const items = clothes.filter(c => c.category===cat);
         if (!items.length) return '';
-        return '['+cat+'] '+items.map(function(c){ return c.name+'('+c.temp_min+'~'+c.temp_max+'C)'; }).join(', ');
+        const today = new Date();
+        return '['+cat+'] '+items.map(function(c){
+          if (c.last_worn) {
+            const worn = new Date(c.last_worn);
+            const diffDays = Math.floor((today - worn) / 86400000);
+            if (diffDays < 2) return c.name+'(착용불가-'+diffDays+'일전착용)';
+          }
+          return c.name+'('+c.temp_min+'~'+c.temp_max+'C)';
+        }).join(', ');
       }).filter(Boolean).join('\n');
       const dayText = weatherList.map(d => {
         const dateStr = new Date(d.date).toLocaleDateString('ko-KR', { month:'long', day:'numeric', weekday:'short' });
@@ -352,10 +368,17 @@ export default function Home() {
     finally { setWeekLoading(false); }
   };
 
+  const markWorn = (clothName) => {
+    const today = new Date().toISOString().split('T')[0];
+    const updated = clothes.map(c => c.name === clothName ? { ...c, last_worn: today } : c);
+    setClothes(updated); LS.set('clothes', updated);
+    showToast(`"${clothName}" 착용 기록됨`);
+  };
+
   const saveSettings = () => { LS.set('settings', settings); showToast('저장됨'); };
   const addSchedule = () => { if(schedules.length>=6)return showToast('최대 6개'); setSchedules([...schedules,{ city:'', time:'18:00', env:'outdoor', place:'실외 이동', isHome:false }]); };
   const updateSchedule = (i, key, val) => setSchedules(schedules.map((s,idx)=>idx===i?{...s,[key]:val}:s));
-  const filtered = catFilter==='전체' ? clothes : clothes.filter(c=>c.category===catFilter);
+  const filtered = (catFilter==='전체' ? clothes : clothes.filter(c=>c.category===catFilter)).slice().sort((a,b)=>new Date(b.added_at||0)-new Date(a.added_at||0));
 
   const tabStyle = (t) => ({ padding:'7px 14px', borderRadius:99, fontSize:13, fontWeight:500, border:`1px solid ${tab===t?S.accent:S.border}`, background:tab===t?S.accent:S.surface, color:tab===t?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' });
 
@@ -523,7 +546,7 @@ export default function Home() {
               <div key={i} style={{ ...card }}>
                 <div style={{ fontSize:11, fontWeight:500, color:S.sub, marginBottom:12 }}>코디 {i+1}</div>
                 <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:12 }}>
-                  {layers.map((l,li)=>{
+                  {layers.filter(l=>l.name&&l.name!=='null').map((l,li)=>{
                     const c = clothMap[l.name];
                     return (
                       <div key={li} style={{ display:'flex', alignItems:'center', gap:6, flex:1 }}>
@@ -539,7 +562,12 @@ export default function Home() {
                     );
                   })}
                 </div>
-                <div style={{ background:S.bg, borderRadius:S.radiusSm, padding:'10px 12px', fontSize:12, color:S.sub, lineHeight:1.6 }}>{o.reason}</div>
+                <div style={{ background:S.bg, borderRadius:S.radiusSm, padding:'10px 12px', fontSize:12, color:S.sub, lineHeight:1.6, marginBottom:8 }}>{o.reason}</div>
+                <div style={{ display:'flex', gap:6', flexWrap:'wrap' }}>
+                  {[o.outer,o.top,o.bottom].filter(Boolean).map(name=>(
+                    <button key={name} onClick={()=>markWorn(name)} style={{ padding:'4px 10px', borderRadius:99, fontSize:11, border:'1px solid #E8E6E0', background:'#fff', color:S.sub, cursor:'pointer', fontFamily:'inherit' }}>✓ {name} 입었어요</button>
+                  ))}
+                </div>
               </div>
             );
           })}
@@ -772,12 +800,12 @@ export default function Home() {
       )}
 
       {mounted && tab==='closet' && createPortal(
-        <button onClick={()=>{resetModal();setModalOpen(true);}} style={{ position:'fixed', bottom:28, left:'50%', transform:'translateX(-50%)', background:S.accent, color:'#fff', border:'none', borderRadius:99, padding:'14px 36px', fontSize:15, fontWeight:700, fontFamily:'inherit', cursor:'pointer', boxShadow:'0 4px 20px rgba(0,0,0,0.18)', zIndex:200, whiteSpace:'nowrap', letterSpacing:'-0.01em' }}>+ 옷 추가</button>,
+        <button onClick={()=>{resetModal();setModalOpen(true);}} style={{ position:'fixed', bottom:28, left:'50%', transform:'translateX(-50%)', background:S.accent, color:'#fff', border:'none', borderRadius:99, padding:'15px 0', fontSize:15, fontWeight:700, fontFamily:'inherit', cursor:'pointer', boxShadow:'0 6px 24px rgba(0,0,0,0.25)', zIndex:200, whiteSpace:'nowrap', letterSpacing:'-0.01em', width:'calc(100% - 80px)', maxWidth:400, display:'block', textAlign:'center' }}>＋ 옷 추가하기</button>,
         document.body
       )}
 
       {mounted && toast && createPortal(
-        <div style={{ position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', background:S.accent, color:'#fff', padding:'10px 20px', borderRadius:99, fontSize:13, zIndex:9999, whiteSpace:'nowrap' }}>{toast}</div>,
+        <div style={{ position:'fixed', bottom:90, left:'50%', transform:'translateX(-50%)', background:S.accent, color:'#fff', padding:'10px 20px', borderRadius:99, fontSize:13, zIndex:9999, whiteSpace:'nowrap' }}>{toast}</div>,
         document.body
       )}
 
