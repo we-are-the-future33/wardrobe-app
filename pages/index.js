@@ -156,7 +156,7 @@ export default function Home() {
       const r = await fetch('/api/parse-url', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url:shopUrl }) });
       const p = await r.json();
       if (p.error) throw new Error(p.error);
-      setClothForm({ name:p.name||'', category:p.category||'상의', temp_min:p.temp_min||'', temp_max:p.temp_max||'', style:(p.style||[]).join(', '), color:(p.colors||[]).join(', ') });
+      setClothForm({ name:p.name||'', category:p.category||'상의', temp_min:p.temp_min||'', temp_max:p.temp_max||'', style:(p.style||[]).join(', '), color:(p.colors||[]).join(', '), brand:p.brand||'' });
       if (p.image_url) setFetchedImage(p.image_url);
       setResultTags(p);
     } catch(e) { showToast('상품 정보를 가져오지 못했어요'); }
@@ -177,7 +177,7 @@ export default function Home() {
         });
         const data = await r.json();
         const p = JSON.parse(data.content?.[0]?.text?.replace(/\`\`\`json|\`\`\`/g,'').trim()||'{}');
-        setClothForm({ name:p.name||'', category:p.category||'상의', temp_min:p.temp_min||'', temp_max:p.temp_max||'', style:(p.style||[]).join(', '), color:(p.colors||[]).join(', ') });
+        setClothForm({ name:p.name||'', category:p.category||'상의', temp_min:p.temp_min||'', temp_max:p.temp_max||'', style:(p.style||[]).join(', '), color:(p.colors||[]).join(', '), brand:p.brand||'' });
         setResultTags(p);
       } catch { showToast('분석 오류'); }
       finally { setAnalyzeLoading(false); }
@@ -204,14 +204,14 @@ export default function Home() {
   };
 
   const resetModal = () => {
-    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
+    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', brand:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
     setResultTags(null); setAddTab('url'); setEditingId(null);
   };
 
   const openEditModal = (c) => {
     setEditingId(c.id);
-    setClothForm({ name:c.name, category:c.category, temp_min:String(c.temp_min), temp_max:String(c.temp_max), style:c.style||'', color:c.color||'', purchase_date:c.purchase_date||new Date().toISOString().split('T')[0], preference:c.preference||3 });
+    setClothForm({ name:c.name, category:c.category, temp_min:String(c.temp_min), temp_max:String(c.temp_max), style:c.style||'', color:c.color||'', brand:c.brand||'', purchase_date:c.purchase_date||new Date().toISOString().split('T')[0], preference:c.preference||3 });
     if (c.image) setFetchedImage(c.image);
     setImageBase64(null); setImageType(null);
     setResultTags(null); setAddTab('url'); setShopUrl('');
@@ -596,7 +596,7 @@ ${isTravel?'여행이 포함되어 있으니 짐싸기 리스트도 포함해주
               </div>
             )}
             <div style={{ marginTop:12 }}>
-              {[{label:'옷 이름',key:'name',placeholder:'예: 그레이 가디건'},{label:'스타일',key:'style',placeholder:'예: 미니멀, 캐주얼'},{label:'색상',key:'color',placeholder:'예: 라이트 그레이'}].map(({label:l,key,placeholder})=>(
+              {[{label:'옷 이름',key:'name',placeholder:'예: 그레이 가디건'},{label:'브랜드',key:'brand',placeholder:'예: 무신사 스탠다드'},{label:'스타일',key:'style',placeholder:'예: 미니멀, 캐주얼'},{label:'색상',key:'color',placeholder:'예: 라이트 그레이'}].map(({label:l,key,placeholder})=>(
                 <div key={key} style={formRow}>
                   <div style={label}>{l}</div>
                   <input value={clothForm[key]} onChange={e=>setClothForm({...clothForm,[key]:e.target.value})} placeholder={placeholder} style={input()}/>
