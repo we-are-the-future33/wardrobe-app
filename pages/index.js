@@ -622,7 +622,12 @@ export default function Home() {
       const data = await r.json();
       const text = data.content?.[0]?.text?.replace(/```json|```/g,'').trim()||'{}';
       const parsed = JSON.parse(text);
-      setWeekOutfits(parsed.outfits||[]);
+      // 날씨 데이터를 outfit에 병합
+      const weatherMap = Object.fromEntries(weatherDays.map(d=>[d.date, d.weather]));
+      const outfitsWithWeather = (parsed.outfits||[]).map(o=>({
+        ...o, weather: weatherMap[o.date] || null
+      }));
+      setWeekOutfits(outfitsWithWeather);
       if (parsed.packing_list) setPackingList(parsed.packing_list);
     } catch(e) { showToast(e.message||'오류 발생'); console.error(e); }
     finally { setWeekLoading(false); }
@@ -669,6 +674,16 @@ export default function Home() {
   const tabStyle = (t) => ({ padding:'7px 14px', borderRadius:99, fontSize:13, fontWeight:500, border:`1px solid ${tab===t?S.accent:S.border}`, background:tab===t?S.accent:S.surface, color:tab===t?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' });
 
   // ── 코디 카드 공통 컴포넌트 ───────────────────────
+  const weatherEmoji = (w) => {
+    if (!w) return '';
+    const c = w.condition||'';
+    if (c.includes('맑')) return '☀️';
+    if (c.includes('구름') || c.includes('흐')) return '☁️';
+    if (c.includes('비') || w.chance_of_rain > 50) return '🌧️';
+    if (c.includes('눈')) return '❄️';
+    return '🌤️';
+  };
+
   const OutfitCard = ({ outfit, index, showDate }) => {
     const clothMap = Object.fromEntries(clothes.map(c=>[c.name,c]));
     const layers = [
@@ -676,32 +691,50 @@ export default function Home() {
       { label:'상의', name:outfit.top },
       outfit.bottom && { label:'하의', name:outfit.bottom },
     ].filter(l=>l&&l.name&&l.name!=='null');
+    const w = outfit.weather;
     return (
-      <div style={{ ...card }}>
+      <div style={{ ...card, display:'flex', flexDirection:'column' }}>
+        {/* 헤더: 날짜 + 날씨 */}
         {showDate && outfit.date && (
-          <div style={{ fontSize:12, fontWeight:700, color:S.accent, marginBottom:10 }}>
-            {new Date(outfit.date).toLocaleDateString('ko-KR',{ month:'long', day:'numeric', weekday:'short' })}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:S.accent }}>
+              {new Date(outfit.date).toLocaleDateString('ko-KR',{ month:'long', day:'numeric', weekday:'short' })}
+            </div>
+            {w && (
+              <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, color:S.sub }}>
+                <span>{weatherEmoji(w)}</span>
+                <span style={{ fontWeight:600, color:S.text }}>{w.temp}°C</span>
+                {w.feels_like && w.feels_like !== w.temp && <span style={{ fontSize:10 }}>체감 {w.feels_like}°C</span>}
+              </div>
+            )}
           </div>
         )}
         {!showDate && <div style={{ fontSize:11, fontWeight:500, color:S.sub, marginBottom:12 }}>코디 {index+1}</div>}
-        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:12 }}>
+        {/* 아이템 행 - 고정 높이로 레이아웃 안정화 */}
+        <div style={{ display:'flex', alignItems:'flex-start', gap:6, marginBottom:12 }}>
           {layers.map((l,li) => {
             const c = clothMap[l.name];
             return (
-              <div key={l.name+li} style={{ display:'flex', alignItems:'center', gap:6, flex:1 }}>
-                {li>0 && <span style={{ color:S.hint, fontSize:14 }}>+</span>}
-                <div style={{ flex:1, textAlign:'center', minWidth:0 }}>
-                  <div style={{ width:'100%', aspectRatio:1, borderRadius:S.radiusSm, background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:4, overflow:'hidden' }}>
+              <div key={l.name+li} style={{ display:'flex', alignItems:'flex-start', gap:6, flex:1, minWidth:0 }}>
+                {li>0 && <span style={{ color:S.hint, fontSize:14, marginTop:30, flexShrink:0 }}>+</span>}
+                <div
+                  style={{ flex:1, textAlign:'center', minWidth:0, cursor:'pointer' }}
+                  onClick={()=>{ if(c) openEditModal(c); }}
+                  title={c ? '클릭하면 수정' : ''}
+                >
+                  <div style={{ width:'100%', aspectRatio:'3/4', borderRadius:S.radiusSm, background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:4, overflow:'hidden', border:c?`1px solid ${S.border}`:'none', position:'relative' }}>
                     {c?.image ? <img src={c.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : <span style={{ fontSize:20 }}>{CAT_EMOJI[c?.category||l.label]||'👔'}</span>}
+                    {c && <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0)', transition:'background 0.15s' }} onMouseEnter={e=>e.target.style.background='rgba(0,0,0,0.08)'} onMouseLeave={e=>e.target.style.background='rgba(0,0,0,0)'}/>}
                   </div>
-                  <div style={{ fontSize:10, color:S.sub }}>{l.label}</div>
+                  <div style={{ fontSize:9, color:S.hint }}>{l.label}</div>
                   <div style={{ fontSize:10, fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{l.name}</div>
+                  {c?.color && <div style={{ fontSize:9, color:S.hint, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.color}</div>}
                 </div>
               </div>
             );
           })}
         </div>
-        <div style={{ background:S.bg, borderRadius:S.radiusSm, padding:'10px 12px', fontSize:12, color:S.sub, lineHeight:1.6, marginBottom:showDate?0:8 }}>{outfit.reason}</div>
+        <div style={{ background:S.bg, borderRadius:S.radiusSm, padding:'8px 10px', fontSize:11, color:S.sub, lineHeight:1.6, marginTop:'auto', marginBottom:showDate?0:8 }}>{outfit.reason}</div>
         {!showDate && (
           <button onClick={()=>{ layers.forEach(l=>markWorn(l.name)); }} style={{ ...btn({ width:'100%', marginTop:8, fontSize:12 }) }}>
             ✓ 오늘 입었어요
