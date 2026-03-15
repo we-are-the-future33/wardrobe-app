@@ -1,0 +1,14 @@
+:root {
+  --bg: #F7F6F2;
+  --surface: #FFFFFF;
+  --border: #E8E6E0;
+  --text: #1A1A18;
+  --text-sub: #888780;
+  --text-hint: #B4B2A9;
+  --accent: #2C2C2A;
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', -apple-system, sans-serif; background: var(--bg); color: var(--text); }
