@@ -211,6 +211,15 @@ export default function Home() {
     if (savedPackingList.length > 0) setPackingList(savedPackingList);
     const savedConfirmed = LS.get('confirmedDates', []);
     if (savedConfirmed.length > 0) setConfirmedDates(new Set(savedConfirmed));
+    // 확정된 outfit 내용을 weekOutfits에 병합 (weekOutfits가 없어도 확정 코디는 복원)
+    const savedConfirmedOutfits = LS.get('confirmedOutfits', []);
+    if (savedConfirmedOutfits.length > 0) {
+      setWeekOutfits(prev => {
+        const dateSet = new Set(prev.map(o=>o.date));
+        const toAdd = savedConfirmedOutfits.filter(o=>!dateSet.has(o.date));
+        return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+      });
+    }
   }, []);
 
   // ── 헬퍼 ─────────────────────────────────────────
@@ -272,8 +281,10 @@ export default function Home() {
 
   const fetchWeather = async (city, time) => {
     const r = await fetch(`/api/weather?city=${encodeURIComponent(city)}&time=${time}`);
-    if (!r.ok) throw new Error(`날씨 오류 (${city})`);
-    return r.json();
+    if (!r.ok) return { temp:15, feels_like:13, condition:'정보없음', chance_of_rain:0 }; // fallback
+    const d = await r.json();
+    if (d.error) return { temp:15, feels_like:13, condition:'정보없음', chance_of_rain:0 };
+    return d;
   };
 
   // ── 코디 추천 ─────────────────────────────────────
@@ -302,7 +313,7 @@ export default function Home() {
             const diffDays = Math.floor((today - new Date(c.last_worn)) / 86400000);
             if (diffDays < (settings.rewear_days||2)) return `${c.name}(착용불가-${diffDays}일전착용)`;
           }
-          if ((c.preference||3) <= (settings.exclude_rating||1)) return `${c.name}(추천제외)`;
+          if ((c.preference||3) <= (settings.exclude_rating??1)) return `${c.name}(추천제외)`;
           const tags = [
             c.material && `소재:${c.material}`,
             c.season && `계절:${c.season}`,
@@ -645,13 +656,18 @@ export default function Home() {
     if (clothes.length===0) return showToast('먼저 옷을 등록해주세요');
     const activeDays = weekPlan.filter(d=>d.active);
     if (activeDays.length===0) return showToast('하루 이상 선택해주세요');
-    setWeekLoading(true); setWeekOutfits([]); setPackingList('');
+    setWeekLoading(true);
+    // 확정된 코디는 보존
+    const confirmedOutfitsSaved = LS.get('confirmedOutfits', []);
+    setWeekOutfits(confirmedOutfitsSaved); // 확정 코디만 남김
+    setPackingList('');
     try {
       const weatherDays = await Promise.all(activeDays.map(async d => {
         const city = d.city||homeCity;
         try {
           const r = await fetch(`/api/weather?city=${encodeURIComponent(city)}&time=09:00`);
           const w = await r.json();
+          if (!r.ok || w.error) throw new Error('날씨 오류');
           return { ...d, city, weather:w };
         } catch { return { ...d, city, weather:{ temp:15, feels_like:13, condition:'정보없음', chance_of_rain:0 } }; }
       }));
@@ -664,7 +680,7 @@ export default function Home() {
             const diffDays = Math.floor((today - new Date(c.last_worn)) / 86400000);
             if (diffDays<(settings.rewear_days||2)) return `${c.name}(착용불가)`;
           }
-          if ((c.preference||3) <= (settings.exclude_rating||1)) return `${c.name}(추천제외)`;
+          if ((c.preference||3) <= (settings.exclude_rating??1)) return `${c.name}(추천제외)`;
           const tags = [
             c.material && `소재:${c.material}`,
             c.season && `계절:${c.season}`,
@@ -712,8 +728,13 @@ export default function Home() {
         }
         return { ...o, date, weather: weatherMap[date] || weatherMap[o.date] || null, indoorPlaces: indoorMap[date] || [] };
       });
-      setWeekOutfits(outfitsWithWeather);
-      LS.set('weekOutfits', outfitsWithWeather);
+      // 확정된 날짜는 새 추천으로 덮어쓰지 않음
+      const finalOutfits = [
+        ...outfitsWithWeather.filter(o=>!confirmedDates.has(o.date)),
+        ...confirmedOutfitsSaved,
+      ].sort((a,b)=>a.date.localeCompare(b.date));
+      setWeekOutfits(finalOutfits);
+      LS.set('weekOutfits', finalOutfits);
       const pl = parsed.packing_list || [];
       setPackingList(pl);
       LS.set('packingList', pl);
@@ -797,7 +818,21 @@ export default function Home() {
   const toggleConfirm = (date) => {
     setConfirmedDates(prev => {
       const next = new Set(prev);
-      next.has(date) ? next.delete(date) : next.add(date);
+      if (next.has(date)) {
+        next.delete(date);
+        // 확정 해제 시 confirmedOutfits에서도 제거
+        const saved = LS.get('confirmedOutfits', []);
+        LS.set('confirmedOutfits', saved.filter(o=>o.date!==date));
+      } else {
+        next.add(date);
+        // 확정 시 outfit 전체 내용도 별도 저장
+        const outfit = weekOutfits.find(o=>o.date===date);
+        if (outfit) {
+          const saved = LS.get('confirmedOutfits', []);
+          const updated = [...saved.filter(o=>o.date!==date), outfit];
+          LS.set('confirmedOutfits', updated);
+        }
+      }
       LS.set('confirmedDates', [...next]);
       return next;
     });
@@ -844,6 +879,7 @@ export default function Home() {
   const regenUnconfirmed = async () => {
     const targets = weekOutfits.filter(o=>!confirmedDates.has(o.date));
     if (!targets.length) return showToast('모든 날이 확정됐어요');
+    showToast(`${targets.length}개 재추천 시작...`);
     for (const o of targets) await regenOutfit(o);
   };
 
@@ -1123,7 +1159,14 @@ export default function Home() {
               <span style={{ fontSize:12, color:S.sub }}>주간 코디 — 탭 나가도 유지돼요</span>
               <div style={{ display:'flex', gap:8 }}>
                 <button onClick={regenUnconfirmed} disabled={weekLoading} style={{ fontSize:11, color:'#0C447C', background:'#E6F1FB', border:'1px solid #85B7EB', borderRadius:8, padding:'4px 10px', cursor:'pointer', fontFamily:'inherit', fontWeight:500 }}>↺ 미확정 재추천</button>
-                <button onClick={()=>{ setWeekOutfits([]); setPackingList([]); setConfirmedDates(new Set()); LS.set('weekOutfits',[]); LS.set('packingList',[]); LS.set('confirmedDates',[]); }} style={{ fontSize:11, color:S.hint, background:'none', border:'none', cursor:'pointer', fontFamily:'inherit' }}>초기화</button>
+                <button onClick={()=>showConfirm('미확정 코디만 초기화할까요? (확정된 코디는 유지)', ()=>{
+                  const confirmed = weekOutfits.filter(o=>confirmedDates.has(o.date));
+                  setWeekOutfits(confirmed);
+                  setPackingList([]);
+                  LS.set('weekOutfits', confirmed);
+                  LS.set('packingList',[]);
+                  setConfirm(null);
+                })} style={{ fontSize:11, color:S.hint, background:'none', border:'none', cursor:'pointer', fontFamily:'inherit' }}>초기화</button>
               </div>
             </div>
           )}
