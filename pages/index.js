@@ -44,7 +44,7 @@ export default function Home() {
   const [shopUrl, setShopUrl] = useState('');
   const [urlLoading, setUrlLoading] = useState(false);
   const [fetchedImage, setFetchedImage] = useState('');
-  const [clothForm, setClothForm] = useState({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'' });
+  const [clothForm, setClothForm] = useState({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
   const [settings, setSettings] = useState({ home_city:'', cold_sensitivity:0 });
   const [toast, setToast] = useState('');
   const [imageBase64, setImageBase64] = useState(null);
@@ -87,7 +87,7 @@ export default function Home() {
       const clothText = cats.map(cat => {
         const items = clothes.filter(c => c.category===cat);
         if (!items.length) return '';
-        return `[${cat}] ${items.map(c=>`${c.name}(${c.temp_min}~${c.temp_max}°C)`).join(', ')}`;
+        return `[${cat}] ${items.map(c=>`${c.name}(${c.temp_min}~${c.temp_max}°C, 선호도:${'★'.repeat(c.preference||3)})`).join(', ')}`;
       }).filter(Boolean).join('\n');
       const weatherText = wList.map(w => `- ${w.time} [${w.isIndoor?'실내':'실외'}] ${w.city}: ${w.temp}°C`).join('\n');
       const minTemp = Math.min(...wList.filter(w=>!w.isIndoor).map(w=>w.feels_like).filter(Boolean));
@@ -97,7 +97,7 @@ export default function Home() {
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:1000,
           system:'패션 스타일리스트. 옷장과 날씨로 최적 코디를 JSON으로만 추천. 다른 텍스트 없음.',
-          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n실외 최저체감: ${minTemp}°C\n${hasRain?'우천 가능':''}\n일정: ${occasion}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 실내 체류 많으면 이너 중요. 탈착 쉬운 아우터 우선.\n\n{"outfits":[{"outer":"이름또는null","top":"이름","bottom":"이름또는null","reason":"이유"}]}` }]
+          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n실외 최저체감: ${minTemp}°C\n${hasRain?'우천 가능':''}\n일정: ${occasion}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 실내 체류 많으면 이너 중요. 탈착 쉬운 아우터 우선. 선호도 높은 옷(★★★★★, ★★★★)을 우선 추천하되 코디 조화도 함께 고려.\n\n{"outfits":[{"outer":"이름또는null","top":"이름","bottom":"이름또는null","reason":"이유"}]}` }]
         })
       });
       const data = await r.json();
@@ -147,7 +147,7 @@ export default function Home() {
     if (!clothForm.name) return showToast('옷 이름을 입력해주세요');
     if (!clothForm.temp_min||!clothForm.temp_max) return showToast('온도 범위를 입력해주세요');
     const image = imageBase64 ? `data:${imageType};base64,${imageBase64}` : (fetchedImage||null);
-    const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), image, added_at:new Date().toISOString() };
+    const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image, added_at:new Date().toISOString() };
     const updated = [...clothes, newCloth];
     setClothes(updated); LS.set('clothes', updated);
     setModalOpen(false); resetModal();
@@ -155,7 +155,7 @@ export default function Home() {
   };
 
   const resetModal = () => {
-    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'' });
+    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
     setResultTags(null); setAddTab('url');
   };
@@ -296,6 +296,7 @@ export default function Home() {
                   </div>
                   <div style={{ fontSize:11, fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.name}</div>
                   <div style={{ fontSize:10, color:S.sub, marginTop:1 }}>{c.category} · {c.temp_min}~{c.temp_max}°C</div>
+                  <div style={{ fontSize:10, color:'#EF9F27', marginTop:1 }}>{'★'.repeat(c.preference||3)}{'☆'.repeat(5-(c.preference||3))}</div>
                 </div>
               ))}
             </div>
@@ -394,6 +395,20 @@ export default function Home() {
                     <input value={clothForm[key]} onChange={e=>setClothForm({...clothForm,[key]:e.target.value})} placeholder={placeholder} style={input()}/>
                   </div>
                 ))}
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <div style={formRow}>
+                  <div style={label}>구매 일자</div>
+                  <input type="date" value={clothForm.purchase_date} onChange={e=>setClothForm({...clothForm,purchase_date:e.target.value})} style={input()}/>
+                </div>
+                <div style={formRow}>
+                  <div style={label}>선호도</div>
+                  <div style={{ display:'flex', gap:4, marginTop:4 }}>
+                    {[1,2,3,4,5].map(n=>(
+                      <button key={n} onClick={()=>setClothForm({...clothForm,preference:n})} style={{ flex:1, padding:'7px 0', borderRadius:8, fontSize:16, border:`1px solid ${clothForm.preference>=n?'#EF9F27':'#E8E6E0'}`, background:clothForm.preference>=n?'#FAEEDA':'#fff', cursor:'pointer', lineHeight:1 }}>★</button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
             <div style={{ display:'flex', gap:8, marginTop:16 }}>
