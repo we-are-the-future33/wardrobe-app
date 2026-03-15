@@ -180,7 +180,31 @@ export default function Home() {
     setClothForm(f => ({ ...f, purchase_date: new Date().toISOString().split('T')[0] }));
     // 주간 코디 복원
     const savedWeekOutfits = LS.get('weekOutfits', []);
-    if (savedWeekOutfits.length > 0) setWeekOutfits(savedWeekOutfits);
+    if (savedWeekOutfits.length > 0) {
+      setWeekOutfits(savedWeekOutfits);
+      // 날씨 없는 항목 백그라운드로 보완
+      const savedSettings = LS.get('settings', { home_city:'' });
+      const homeCity = savedSettings.home_city;
+      if (homeCity) {
+        const needWeather = savedWeekOutfits.filter(o => !o.weather);
+        if (needWeather.length > 0) {
+          Promise.all(needWeather.map(async o => {
+            try {
+              const r = await fetch(`/api/weather?city=${encodeURIComponent(homeCity)}&time=09:00`);
+              const w = await r.json();
+              return { date: o.date, weather: w };
+            } catch { return null; }
+          })).then(results => {
+            setWeekOutfits(prev => {
+              const weatherMap = Object.fromEntries(results.filter(Boolean).map(r=>[r.date, r.weather]));
+              const updated = prev.map(o => weatherMap[o.date] ? {...o, weather: weatherMap[o.date]} : o);
+              LS.set('weekOutfits', updated);
+              return updated;
+            });
+          });
+        }
+      }
+    }
     const savedPackingList = LS.get('packingList', []);
     if (savedPackingList.length > 0) setPackingList(savedPackingList);
     const savedConfirmed = LS.get('confirmedDates', []);
@@ -767,13 +791,20 @@ ${clothText}
             <div style={{ fontSize:13, fontWeight:700, color:S.accent }}>
               {new Date(outfit.date).toLocaleDateString('ko-KR',{ month:'long', day:'numeric', weekday:'short' })}
             </div>
-            {w && (
-              <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, color:S.sub }}>
-                <span>{weatherEmoji(w)}</span>
-                <span style={{ fontWeight:600, color:S.text }}>{w.temp}°C</span>
-                {w.feels_like && w.feels_like !== w.temp && <span style={{ fontSize:10 }}>체감 {w.feels_like}°C</span>}
+            <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, color:S.sub }}>
+                {w ? (
+                  <>
+                    <span>{weatherEmoji(w)}</span>
+                    <span style={{ fontWeight:600, color:S.text }}>{w.temp}°C</span>
+                    {w.feels_like && w.feels_like !== w.temp && <span style={{ fontSize:10 }}>체감 {w.feels_like}°C</span>}
+                    {(w.chance_of_rain > 40 || (w.condition||'').includes('비')) && (
+                      <span style={{ marginLeft:2, fontSize:13 }} title={`강수확률 ${w.chance_of_rain}%`}>☂️</span>
+                    )}
+                  </>
+                ) : (
+                  <span style={{ fontSize:11, color:S.hint }}>날씨 로딩중...</span>
+                )}
               </div>
-            )}
           </div>
         )}
         {!showDate && <div style={{ fontSize:11, fontWeight:500, color:S.sub, marginBottom:12 }}>코디 {index+1}</div>}
