@@ -53,6 +53,7 @@ export default function Home() {
   const [imageType, setImageType] = useState(null);
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
   const [resultTags, setResultTags] = useState(null);
+  const [pendingItems, setPendingItems] = useState([]);
   const [mounted, setMounted] = useState(false);
   const [recommendMode, setRecommendMode] = useState('today'); // today | week
   const [weekPlan, setWeekPlan] = useState(() => {
@@ -158,9 +159,23 @@ export default function Home() {
       const r = await fetch('/api/parse-url', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url:shopUrl }) });
       const p = await r.json();
       if (p.error) throw new Error(p.error);
-      setClothForm({ name:p.name||'', category:p.category||'상의', temp_min:p.temp_min||'', temp_max:p.temp_max||'', style:(p.style||[]).join(', '), color:(p.colors||[]).join(', '), brand:p.brand||'', price:p.price||'' });
-      if (p.image_url) setFetchedImage(p.image_url);
-      setResultTags(p);
+
+      // 세트 상품 처리 (items 배열)
+      if (p.items && p.items.length > 1) {
+        // 여러 아이템 - 첫 번째 폼에 채우고 나머지는 pendingItems로
+        const first = p.items[0];
+        setClothForm({ name:first.name||'', category:first.category||'상의', temp_min:first.temp_min||'', temp_max:first.temp_max||'', style:(first.style||[]).join(', '), color:(first.colors||[]).join(', '), brand:p.brand||'', price:p.price||'' });
+        if (p.image_url) setFetchedImage(p.image_url);
+        setResultTags({ ...p, isSet:true, setCount:p.items.length, currentItem:0 });
+        setPendingItems(p.items.slice(1).map(item => ({ ...item, brand:p.brand||'', price:p.price||'', image:p.image_url||null })));
+      } else {
+        // 단품
+        const item = p.items?.[0] || p;
+        setClothForm({ name:item.name||'', category:item.category||'상의', temp_min:item.temp_min||'', temp_max:item.temp_max||'', style:(item.style||[]).join(', '), color:(item.colors||[]).join(', '), brand:p.brand||'', price:p.price||'' });
+        if (p.image_url) setFetchedImage(p.image_url);
+        setResultTags(p);
+        setPendingItems([]);
+      }
     } catch(e) { showToast('상품 정보를 가져오지 못했어요'); }
     finally { setUrlLoading(false); }
   };
@@ -200,15 +215,25 @@ export default function Home() {
       const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image, added_at:new Date().toISOString(), price:clothForm.price||'' };
       const updated = [...clothes, newCloth];
       setClothes(updated); LS.set('clothes', updated);
-      setModalOpen(false); resetModal();
-      showToast(`"${clothForm.name}" 추가됨`);
+      // 세트 상품 남은 아이템 있으면 다음 아이템 폼으로
+      if (pendingItems.length > 0) {
+        const next = pendingItems[0];
+        setClothForm({ name:next.name||'', category:next.category||'상의', temp_min:String(next.temp_min||''), temp_max:String(next.temp_max||''), style:(next.style||[]).join(', '), color:(next.colors||[]).join(', '), brand:next.brand||'', price:next.price||'' });
+        if (next.image) setFetchedImage(next.image);
+        setImageBase64(null); setImageType(null);
+        setPendingItems(pendingItems.slice(1));
+        showToast(`"${clothForm.name}" 저장됨. 다음 아이템을 확인해주세요.`);
+      } else {
+        setModalOpen(false); resetModal();
+        showToast(`"${clothForm.name}" 추가됨`);
+      }
     }
   };
 
   const resetModal = () => {
     setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', brand:'', price:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
-    setResultTags(null); setAddTab('url'); setEditingId(null);
+    setResultTags(null); setAddTab('url'); setEditingId(null); setPendingItems([]);
   };
 
   const openEditModal = (c) => {
@@ -547,7 +572,7 @@ export default function Home() {
       {mounted && modalOpen && createPortal(
         <div onClick={e=>e.target===e.currentTarget&&setModalOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
           <div style={{ background:'#fff', borderRadius:'20px 20px 0 0', padding:20, width:'100%', maxWidth:480, maxHeight:'85vh', overflowY:'auto' }}>
-            <div style={{ fontSize:16, fontWeight:700, marginBottom:16 }}>{editingId ? '옷 수정' : '옷 추가'}</div>
+            <div style={{ fontSize:16, fontWeight:700, marginBottom:16 }}>{editingId ? '옷 수정' : pendingItems.length > 0 ? `옷 추가 (${(resultTags?.setCount||pendingItems.length+1) - pendingItems.length}/${resultTags?.setCount||pendingItems.length+1})` : '옷 추가'}</div>
             <div style={{ display:'flex', gap:4, marginBottom:14 }}>
               {['url','photo'].map(t=>(
                 <button key={t} onClick={()=>setAddTab(t)} style={{ flex:1, padding:9, borderRadius:S.radiusSm, fontSize:13, fontWeight:500, border:`1px solid ${S.border}`, background:addTab===t?S.accent:S.bg, color:addTab===t?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>
@@ -601,6 +626,7 @@ export default function Home() {
                 {(resultTags.material||[]).map(t=><span key={t} style={{ display:'inline-block', padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:500, margin:2, background:'#FAEEDA', color:'#633806' }}>{t}</span>)}
                 {(resultTags.style||[]).map(t=><span key={t} style={{ display:'inline-block', padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:500, margin:2, background:'#E6F1FB', color:'#0C447C' }}>{t}</span>)}
                 {(resultTags.temp_min||resultTags.temp_max)&&<span style={{ display:'inline-block', padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:500, margin:2, background:'#EEEDFE', color:'#3C3489' }}>{resultTags.temp_min||'?'}~{resultTags.temp_max||'?'}°C</span>}
+                {resultTags.isSet&&<div style={{ marginTop:6, fontSize:11, color:'#0C447C', background:'#E6F1FB', padding:'5px 10px', borderRadius:8 }}>👔 세트 상품 {resultTags.setCount}개 감지 — 저장하면 다음 아이템({pendingItems[0]?.name||''})으로 자동 이동해요</div>}
                 {resultTags.images_analyzed>0&&<span style={{ display:'inline-block', padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:500, margin:2, background:'#EAF3DE', color:'#27500A' }}>이미지 {resultTags.images_analyzed}장 분석</span>}
                 {resultTags.detail&&<div style={{ fontSize:11, color:'#633806', marginTop:6, lineHeight:1.5 }}>소재: {resultTags.detail}</div>}
                 {resultTags.care&&<div style={{ fontSize:11, color:'#888780', marginTop:4 }}>세탁: {resultTags.care}</div>}
