@@ -890,7 +890,7 @@ export default function Home() {
   const filtered = (catFilter==='전체' ? clothes : clothes.filter(c=>c.category===catFilter))
     .slice().sort((a,b)=>new Date(b.added_at||0)-new Date(a.added_at||0));
 
-  const tabStyle = (t) => ({ padding:'7px 14px', borderRadius:99, fontSize:13, fontWeight:500, border:`1px solid ${tab===t?S.accent:S.border}`, background:tab===t?S.accent:S.surface, color:tab===t?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' });
+  const tabStyle = (t) => ({ padding:'8px 16px', borderRadius:99, fontSize:13, fontWeight:600, border:`1px solid ${tab===t?S.accent:S.border}`, background:tab===t?S.accent:S.surface, color:tab===t?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap', boxShadow: tab===t?'0 2px 8px rgba(0,0,0,0.15)':'none', transition:'all 0.15s' });
 
   // ── 코디 카드 공통 컴포넌트 ───────────────────────
   const colorToCSS = (colorText) => {
@@ -1051,7 +1051,7 @@ export default function Home() {
         <div style={{ display:'flex', gap:4 }}>
           {['recommend','closet','settings'].map(t=>(
             <button key={t} style={tabStyle(t)} onClick={()=>setTab(t)}>
-              {t==='recommend'?'추천':t==='closet'?'옷장':'설정'}
+              {t==='recommend'?'✨ 추천':t==='closet'?'👔 옷장':'⚙️ 설정'}
             </button>
           ))}
         </div>
