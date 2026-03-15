@@ -369,6 +369,9 @@ export default function Home() {
                 {(resultTags.material||[]).map(t=><span key={t} style={{ display:'inline-block', padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:500, margin:2, background:'#FAEEDA', color:'#633806' }}>{t}</span>)}
                 {(resultTags.style||[]).map(t=><span key={t} style={{ display:'inline-block', padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:500, margin:2, background:'#E6F1FB', color:'#0C447C' }}>{t}</span>)}
                 {(resultTags.temp_min||resultTags.temp_max)&&<span style={{ display:'inline-block', padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:500, margin:2, background:'#EEEDFE', color:'#3C3489' }}>{resultTags.temp_min||'?'}~{resultTags.temp_max||'?'}°C</span>}
+                {resultTags.images_analyzed>0&&<span style={{ display:'inline-block', padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:500, margin:2, background:'#EAF3DE', color:'#27500A' }}>이미지 {resultTags.images_analyzed}장 분석</span>}
+                {resultTags.detail&&<div style={{ fontSize:11, color:'#633806', marginTop:6, lineHeight:1.5 }}>소재: {resultTags.detail}</div>}
+                {resultTags.care&&<div style={{ fontSize:11, color:'#888780', marginTop:4 }}>세탁: {resultTags.care}</div>}
               </div>
             )}
             <div style={{ marginTop:12 }}>
