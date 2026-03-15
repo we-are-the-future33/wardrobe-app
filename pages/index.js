@@ -363,6 +363,7 @@ export default function Home() {
           colors:   item.colors || [],
           temp_min: x.temp_min || String(item.temp_min || ''),
           temp_max: x.temp_max || String(item.temp_max || ''),
+          enriched: true,
         };
       }));
       showToast(imageData && imageData.startsWith('data:') ? '이미지·정보 보강 완료' : 'URL 정보로 보강됐어요 (이미지 제외)');
@@ -836,9 +837,23 @@ export default function Home() {
                   ) : (
                     <button onClick={e=>{e.stopPropagation();deleteCloth(c.id);}} style={{ position:'absolute', top:4, right:4, width:18, height:18, borderRadius:'50%', background:S.danger, color:'white', border:'none', fontSize:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1 }}>✕</button>
                   )}
-                  <div style={{ width:'100%', height:140, borderRadius:8, background:S.bg, overflow:'hidden', flexShrink:0, marginBottom:8, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <div style={{ width:'100%', height:140, borderRadius:8, background:S.bg, overflow:'hidden', flexShrink:0, marginBottom:6, display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}
+                    onClick={e=>{ if(selectMode) return; e.stopPropagation(); document.getElementById('img-replace-'+c.id).click(); }}>
                     {c.image ? <img src={c.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : <span style={{ fontSize:28 }}>{CAT_EMOJI[c.category]||'👔'}</span>}
+                    {!selectMode && <div style={{ position:'absolute', bottom:4, right:4, background:'rgba(0,0,0,0.45)', borderRadius:4, padding:'2px 5px', fontSize:9, color:'#fff', pointerEvents:'none' }}>교체</div>}
+                    <input id={'img-replace-'+c.id} type="file" accept="image/*" style={{ display:'none' }} onClick={e=>e.stopPropagation()} onChange={e=>{
+                      if(!e.target.files[0]) return;
+                      const reader = new FileReader();
+                      reader.onload = ev => {
+                        const b64 = ev.target.result;
+                        ImageStore.set(c.id, b64);
+                        const updated = clothes.map(x => x.id===c.id ? {...x, image:b64, hasImage:true} : x);
+                        saveClothes(updated);
+                      };
+                      reader.readAsDataURL(e.target.files[0]);
+                    }}/>
                   </div>
+                  {c.color && <div style={{ marginBottom:4 }}><span style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background:S.bg, border:'1px solid '+S.border, color:S.text, fontWeight:500 }}>{c.color}</span></div>}
                   <div style={{ fontSize:11, fontWeight:600, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', lineHeight:1.4, marginBottom:4 }}>{c.name}</div>
                   <div style={{ fontSize:10, color:S.sub, marginTop:'auto', display:'flex', flexDirection:'column', gap:1 }}>
                     {c.brand && <div style={{ color:S.sub, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.brand}</div>}
@@ -1046,16 +1061,20 @@ export default function Home() {
                               style={{ padding:'5px 10px', borderRadius:6, fontSize:11, fontWeight:600, border:`1px solid #85B7EB`, background:orderUrlMap[item.id]?'#0C447C':'#E6F1FB', color:orderUrlMap[item.id]?'#fff':'#B5D4F4', cursor:'pointer', fontFamily:'inherit', flexShrink:0, whiteSpace:'nowrap', opacity:!orderUrlMap[item.id]?0.5:1 }}
                             >{orderUrlLoading[item.id]?'⏳ 분석중..':'🔗 보강'}</button>
                           </div>
-                          {/* 보강 결과 태그 */}
-                          {(item.style||item.material) && (
-                            <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
-                              {item.style && item.style.split(',').map(s=>s.trim()).filter(Boolean).map(s=>(
-                                <span key={s} style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background:'#E6F1FB', color:'#0C447C' }}>{s}</span>
-                              ))}
-                              {item.material && item.material.split(',').map(s=>s.trim()).filter(Boolean).map(s=>(
-                                <span key={s} style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background:'#FAEEDA', color:'#633806' }}>{s}</span>
-                              ))}
-                              <span style={{ fontSize:10, color:S.hint }}>보강됨 ✓</span>
+                          {/* 보강 결과 */}
+                          {item.enriched && (
+                            <div style={{ background:'#F0F7FF', borderRadius:6, padding:'6px 8px', marginTop:4 }}>
+                              <div style={{ fontSize:10, color:'#0C447C', fontWeight:600, marginBottom:4 }}>✓ 보강 완료</div>
+                              <div style={{ display:'flex', flexWrap:'wrap', gap:3 }}>
+                                {item.image && <span style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background:'#E1F5EE', color:'#085041' }}>이미지</span>}
+                                {item.style && item.style.split(',').map(s=>s.trim()).filter(Boolean).map(s=>(
+                                  <span key={s} style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background:'#E6F1FB', color:'#0C447C' }}>{s}</span>
+                                ))}
+                                {item.material && item.material.split(',').map(s=>s.trim()).filter(Boolean).map(s=>(
+                                  <span key={s} style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background:'#FAEEDA', color:'#633806' }}>{s}</span>
+                                ))}
+                                {!item.style && !item.material && !item.image && <span style={{ fontSize:10, color:'#888' }}>추가 정보 없음</span>}
+                              </div>
                             </div>
                           )}
                         </div>
