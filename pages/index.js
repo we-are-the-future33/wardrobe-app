@@ -55,6 +55,10 @@ export default function Home() {
   const [resultTags, setResultTags] = useState(null);
   const [pendingItems, setPendingItems] = useState([]);
   const [colorOptions, setColorOptions] = useState([]);
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchItems, setBatchItems] = useState([]);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchUrls, setBatchUrls] = useState('');
   const [mounted, setMounted] = useState(false);
   const [recommendMode, setRecommendMode] = useState('today'); // today | week
   const [weekPlan, setWeekPlan] = useState(() => {
@@ -153,6 +157,57 @@ export default function Home() {
     }
   };
 
+  const fetchBatch = async () => {
+    const urls = batchUrls.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
+    if (urls.length === 0) return showToast('URL을 입력해주세요');
+    if (urls.length > 10) return showToast('최대 10개까지 가능해요');
+    setBatchLoading(true); setBatchItems([]);
+    const results = await Promise.allSettled(urls.map(async url => {
+      const r = await fetch('/api/parse-url', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url }) });
+      const p = await r.json();
+      if (p.error) throw new Error(p.error);
+      const items = p.items || [p];
+      return items.map(item => ({
+        id: Math.random().toString(36).slice(2),
+        name: item.name || '',
+        brand: p.brand || '',
+        price: p.price || '',
+        category: item.category || '상의',
+        temp_min: String(item.temp_min || ''),
+        temp_max: String(item.temp_max || ''),
+        style: (item.style || []).join(', '),
+        color: item.colors?.length === 1 ? item.colors[0] : '',
+        colors: item.colors || [],
+        image: p.image_url || null,
+        checked: true,
+        url,
+      }));
+    }));
+    const allItems = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+    const failed = results.filter(r => r.status === 'rejected').length;
+    setBatchItems(allItems);
+    setBatchLoading(false);
+    if (failed > 0) showToast(`${failed}개 URL 파싱 실패`);
+  };
+
+  const saveBatchItems = () => {
+    const toSave = batchItems.filter(i => i.checked && i.name);
+    if (toSave.length === 0) return showToast('저장할 아이템을 선택해주세요');
+    const newClothes = toSave.map(i => ({
+      id: Date.now().toString() + Math.random().toString(36).slice(2),
+      name: i.name, brand: i.brand, price: i.price,
+      category: i.category, temp_min: parseInt(i.temp_min)||10, temp_max: parseInt(i.temp_max)||20,
+      style: i.style, color: i.color,
+      image: i.image, preference: 3,
+      purchase_date: new Date().toISOString().split('T')[0],
+      added_at: new Date().toISOString(),
+    }));
+    const updated = [...clothes, ...newClothes];
+    setClothes(updated); LS.set('clothes', updated);
+    setModalOpen(false); resetModal();
+    showToast(`${newClothes.length}개 저장됨`);
+  };
+
   const fetchFromUrl = async () => {
     if (!shopUrl) return showToast('URL을 입력해주세요');
     setUrlLoading(true); setResultTags(null); setFetchedImage('');
@@ -238,7 +293,7 @@ export default function Home() {
   const resetModal = () => {
     setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', brand:'', price:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
-    setResultTags(null); setAddTab('url'); setEditingId(null); setPendingItems([]); setColorOptions([]);
+    setResultTags(null); setAddTab('url'); setEditingId(null); setPendingItems([]); setColorOptions([]); setBatchMode(false); setBatchItems([]); setBatchUrls('');
   };
 
   const openEditModal = (c) => {
