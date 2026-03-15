@@ -241,14 +241,12 @@ export default function Home() {
       const clothText = cats.map(cat => {
         const items = clothes.filter(c => c.category===cat);
         if (!items.length) return '';
-        const itemDesc = items.map(c => { const stars = Array(c.preference||3).fill('★').join(''); return c.name+'('+c.temp_min+'~'+c.temp_max+'C, '+stars+')'; }).join(', '); return '['+cat+'] '+itemDesc;
-      }).filter(Boolean).join('
-');
+        const stars = Array(c.preference||3).fill('S').join(''); return '['+cat+'] '+items.map(c => c.name+'('+c.temp_min+'~'+c.temp_max+'C, '+Array(c.preference||3).fill('S').join('')+')').join(', ');
+      }).filter(Boolean).join('\n');
       const dayText = weatherList.map(d => {
         const dateStr = new Date(d.date).toLocaleDateString('ko-KR', { month:'long', day:'numeric', weekday:'short' });
         return `- ${dateStr}: ${d.city} ${d.weather.temp}°C ${d.weather.condition}, ${d.env==='indoor'?d.place:'실외 활동'}, ${d.occasion}`;
-      }).join('
-');
+      }).join('\n');
       const isTravel = activeDays.some(d => d.city && d.city !== homeCity);
       const r = await fetch('/api/claude', {
         method:'POST', headers:{'Content-Type':'application/json'},
