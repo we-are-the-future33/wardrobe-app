@@ -712,7 +712,7 @@ export default function Home() {
                 </div>
                 {batchMode ? (
                   <div>
-                    <textarea value={batchUrls} onChange={e=>setBatchUrls(e.target.value)} placeholder={'URL을 한 줄에 하나씩
+placeholder={'URL을 한 줄에 하나씩\nhttps://www.musinsa.com/products/123\nhttps://www.musinsa.com/products/456'}
 https://www.musinsa.com/products/123
 https://www.musinsa.com/products/456'} style={{ width:'100%', height:90, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'9px 12px', fontSize:12, fontFamily:'inherit', outline:'none', resize:'none', boxSizing:'border-box', marginBottom:8 }}/>
                     <button onClick={fetchBatch} disabled={batchLoading} style={btnPrimary({ width:'100%' })}>{batchLoading?'파싱 중...':'한꺼번에 가져오기'}</button>
