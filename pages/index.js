@@ -291,14 +291,14 @@ export default function Home() {
   };
 
   const resetModal = () => {
-    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', brand:'', price:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
+    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', brand:'', price:'', season:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
     setResultTags(null); setAddTab('url'); setEditingId(null); setPendingItems([]); setColorOptions([]); setBatchMode(false); setBatchItems([]); setBatchUrls('');
   };
 
   const openEditModal = (c) => {
     setEditingId(c.id);
-    setClothForm({ name:c.name, category:c.category, temp_min:String(c.temp_min), temp_max:String(c.temp_max), style:c.style||'', color:c.color||'', brand:c.brand||'', price:c.price||'', purchase_date:c.purchase_date||new Date().toISOString().split('T')[0], preference:c.preference||3 });
+    setClothForm({ name:c.name, category:c.category, temp_min:String(c.temp_min), temp_max:String(c.temp_max), style:c.style||'', color:c.color||'', brand:c.brand||'', price:c.price||'', season:c.season||'', purchase_date:c.purchase_date||new Date().toISOString().split('T')[0], preference:c.preference||3 });
     if (c.image) setFetchedImage(c.image);
     setImageBase64(null); setImageType(null);
     setResultTags(null); setAddTab('url'); setShopUrl('');
@@ -551,7 +551,6 @@ export default function Home() {
         <div style={{ padding:20, maxWidth:480, margin:'0 auto' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
             <div style={{ fontSize:18, fontWeight:700, letterSpacing:'-0.02em' }}>내 옷장</div>
-            <button onClick={()=>{resetModal();setModalOpen(true);}} style={btnPrimary({ padding:'7px 14px', fontSize:12 })}>+ 옷 추가</button>
           </div>
           <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
             {['전체','아우터','상의','하의','원피스','신발'].map(c=>(
@@ -564,9 +563,9 @@ export default function Home() {
               <p style={{ fontSize:14 }}>등록된 옷이 없어요</p>
             </div>
           ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, alignItems:'start' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
               {filtered.map(c=>(
-                <div key={c.id} onClick={()=>openEditModal(c)} style={{ background:S.surface, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'10px 8px', textAlign:'center', position:'relative', cursor:'pointer', display:'flex', flexDirection:'column' }}>
+                <div key={c.id} onClick={()=>openEditModal(c)} style={{ background:S.surface, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'10px 8px', textAlign:'center', position:'relative', cursor:'pointer', display:'flex', flexDirection:'column', height:'100%', boxSizing:'border-box' }}>
                   <button onClick={e=>{e.stopPropagation();deleteCloth(c.id);}} style={{ position:'absolute', top:4, right:4, width:18, height:18, borderRadius:'50%', background:'#E24B4A', color:'white', border:'none', fontSize:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1 }}>✕</button>
                   <div style={{ width:'100%', height:140, borderRadius:8, background:S.bg, overflow:'hidden', flexShrink:0, marginBottom:8, display:'flex', alignItems:'center', justifyContent:'center' }}>
                     {c.image?<img src={c.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>:<span style={{ fontSize:28 }}>{CAT_EMOJI[c.category]||'👔'}</span>}
@@ -575,7 +574,7 @@ export default function Home() {
                   <div style={{ fontSize:10, color:S.sub, marginTop:'auto' }}>
                     {c.brand && <div style={{ whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginBottom:1 }}>{c.brand}</div>}
                     {c.price && <div style={{ color:S.accent, fontWeight:500, marginBottom:1 }}>{c.price}</div>}
-                    <div>{c.category} · {c.temp_min}~{c.temp_max}°C</div>
+                    <div>{c.category}{c.category==='액세서리'?(c.season?' · '+c.season:''):' · '+c.temp_min+'~'+c.temp_max+'°C'}</div>
                     {c.purchase_date && <div style={{ color:S.hint, marginTop:1 }}>{c.purchase_date.replace(/-/g,'.')}</div>}
                     <div style={{ color:'#EF9F27', marginTop:2 }}>{'★'.repeat(c.preference||3)}{'☆'.repeat(5-(c.preference||3))}</div>
                   </div>
@@ -719,10 +718,27 @@ export default function Home() {
               </div>
               <div style={formRow}>
                 <div style={label}>카테고리</div>
-                <select value={clothForm.category} onChange={e=>setClothForm({...clothForm,category:e.target.value})} style={input()}>
+                <select value={clothForm.category} onChange={e=>{
+                  const cat = e.target.value;
+                  if (cat === '액세서리') {
+                    setClothForm({...clothForm, category:cat, temp_min:'-99', temp_max:'99', season:'사계절'});
+                  } else {
+                    setClothForm({...clothForm, category:cat, season:''});
+                  }
+                }} style={input()}>
                   {['아우터','상의','하의','원피스','신발','액세서리'].map(c=><option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
+              {clothForm.category === '액세서리' && (
+                <div style={formRow}>
+                  <div style={label}>시즌</div>
+                  <div style={{ display:'flex', gap:6, marginTop:4 }}>
+                    {[['사계절','-99','99'],['봄/가을','10','22'],['여름','23','35'],['겨울','-15','12']].map(([s,mn,mx])=>(
+                      <button key={s} onClick={()=>setClothForm({...clothForm,season:s,temp_min:mn,temp_max:mx})} style={{ flex:1, padding:'6px 0', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${clothForm.season===s?S.accent:S.border}`, background:clothForm.season===s?S.accent:S.surface, color:clothForm.season===s?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{s}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                 {[{label:'최저 온도 (°C)',key:'temp_min',placeholder:'10'},{label:'최고 온도 (°C)',key:'temp_max',placeholder:'18'}].map(({label:l,key,placeholder})=>(
                   <div key={key} style={formRow}>
@@ -752,6 +768,11 @@ export default function Home() {
             </div>
           </div>
         </div>,
+        document.body
+      )}
+
+      {mounted && tab==='closet' && createPortal(
+        <button onClick={()=>{resetModal();setModalOpen(true);}} style={{ position:'fixed', bottom:28, left:'50%', transform:'translateX(-50%)', background:S.accent, color:'#fff', border:'none', borderRadius:99, padding:'14px 36px', fontSize:15, fontWeight:700, fontFamily:'inherit', cursor:'pointer', boxShadow:'0 4px 20px rgba(0,0,0,0.18)', zIndex:200, whiteSpace:'nowrap', letterSpacing:'-0.01em' }}>+ 옷 추가</button>,
         document.body
       )}
 
