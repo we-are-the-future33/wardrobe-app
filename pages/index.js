@@ -128,6 +128,8 @@ export default function Home() {
   // 주문내역 등록
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderItems, setOrderItems]     = useState([]);
+  const [orderUrlMap, setOrderUrlMap]   = useState({}); // { itemId: url }
+  const [orderUrlLoading, setOrderUrlLoading] = useState({}); // { itemId: bool }
 
   // 설정
   const [settings, setSettings] = useState({ home_city:'', cold_sensitivity:0 });
@@ -166,18 +168,31 @@ export default function Home() {
     LS.set('clothes', toStore);
   }, []);
 
-  // 이미지 포함해서 옷장 로드
+  // 이미지 포함해서 옷장 로드 (구버전 data: 인라인 포함 마이그레이션)
   const loadClothesWithImages = useCallback((raw) => {
-    return raw.map(c => ({
-      ...c,
-      image: c.hasImage ? ImageStore.get(c.id) : null,
-    }));
+    return raw.map(c => {
+      // 신버전: hasImage 플래그 → ImageStore에서 로드
+      if (c.hasImage) return { ...c, image: ImageStore.get(c.id) };
+      // 구버전: image 필드에 직접 base64가 있는 경우 → ImageStore로 마이그레이션
+      if (c.image && c.image.startsWith('data:')) {
+        ImageStore.set(c.id, c.image);
+        return { ...c, hasImage: true };
+      }
+      return { ...c, image: null };
+    });
   }, []);
 
   useEffect(() => {
     if (!mounted) return;
     const raw = LS.get('clothes', []);
-    setClothes(loadClothesWithImages(raw));
+    const withImages = loadClothesWithImages(raw);
+    setClothes(withImages);
+    // 마이그레이션 후 새 포맷으로 재저장 (image 필드 제거)
+    const toStore = withImages.map(c => {
+      const { image, ...rest } = c;
+      return { ...rest, hasImage: !!ImageStore.get(c.id) };
+    });
+    LS.set('clothes', toStore);
   }, [mounted, loadClothesWithImages]);
 
   const fetchWeather = async (city, time) => {
@@ -302,6 +317,37 @@ export default function Home() {
       else if (failed > 0) showToast(`${allItems.length}개 인식됨 (${failed}장 실패)`);
     } catch(e) { showToast('분석 오류'); console.error(e); }
     finally { setOrderLoading(false); }
+  };
+
+  // 주문내역 상품을 URL로 보강
+  const enrichItemWithUrl = async (itemId, url) => {
+    if (!url || !url.startsWith('http')) return showToast('올바른 URL을 입력해주세요');
+    setOrderUrlLoading(m => ({ ...m, [itemId]: true }));
+    try {
+      const r = await fetch('/api/parse-url', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url }) });
+      const p = await r.json();
+      if (p.error) throw new Error(p.error);
+      const item = p.items?.[0] || p;
+      // URL 데이터로 현재 item 보강 (주문내역 정보 우선 유지, 빈 것만 채움)
+      setOrderItems(o => o.map(x => {
+        if (x.id !== itemId) return x;
+        return {
+          ...x,
+          // URL에서만 가져오는 것
+          image: p.image_url || x.image,
+          style: (item.style||[]).join(', ') || x.style || '',
+          material: (item.material||[]).join(', ') || x.material || '',
+          // 주문내역 값 우선, 없으면 URL 값
+          brand:    x.brand    || p.brand    || '',
+          color:    x.color    || (item.colors?.length===1 ? item.colors[0] : ''),
+          colors:   item.colors || [],
+          temp_min: x.temp_min || String(item.temp_min || ''),
+          temp_max: x.temp_max || String(item.temp_max || ''),
+        };
+      }));
+      showToast('URL 정보로 보강됐어요');
+    } catch(e) { showToast('URL 파싱 실패: ' + e.message); console.error(e); }
+    finally { setOrderUrlLoading(m => ({ ...m, [itemId]: false })); }
   };
 
   const saveOrderItems = () => {
@@ -459,7 +505,7 @@ export default function Home() {
     setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', brand:'', price:'', season:'', purchase_date:new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
     setResultTags(null); setAddTab('url'); setEditingId(null); setPendingItems([]); setColorOptions([]);
-    setBatchMode(false); setBatchItems([]); setBatchUrls(''); setOrderItems([]);
+    setBatchMode(false); setBatchItems([]); setBatchUrls(''); setOrderItems([]); setOrderUrlMap({}); setOrderUrlLoading({});
   };
 
   const openEditModal = (c) => {
@@ -930,6 +976,21 @@ export default function Home() {
                             </div>
                           </div>
                           <button onClick={()=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,checked:!b.checked}:b))} style={{ width:24, height:24, borderRadius:6, border:`1.5px solid ${item.checked?S.accent:S.border}`, background:item.checked?S.accent:'#fff', color:'#fff', fontSize:14, cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>{item.checked?'✓':''}</button>
+                        </div>
+                        {/* URL 보강 */}
+                        <div style={{ marginTop:8, display:'flex', gap:6, alignItems:'center' }}>
+                          {item.image && <img src={item.image} style={{ width:36, height:36, objectFit:'cover', borderRadius:6, flexShrink:0 }} alt=""/>}
+                          <input
+                            value={orderUrlMap[item.id]||''}
+                            onChange={e=>setOrderUrlMap(m=>({...m,[item.id]:e.target.value}))}
+                            placeholder="상품 URL 입력하면 이미지·소재 자동 보강"
+                            style={{ flex:1, border:`1px solid ${S.border}`, borderRadius:6, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none', color:S.sub }}
+                          />
+                          <button
+                            onClick={()=>enrichItemWithUrl(item.id, orderUrlMap[item.id])}
+                            disabled={orderUrlLoading[item.id] || !orderUrlMap[item.id]}
+                            style={{ padding:'5px 10px', borderRadius:6, fontSize:11, fontWeight:500, border:`1px solid #85B7EB`, background:'#E6F1FB', color:'#0C447C', cursor:'pointer', fontFamily:'inherit', flexShrink:0, opacity:(!orderUrlMap[item.id])?0.4:1 }}
+                          >{orderUrlLoading[item.id]?'..':'🔗 보강'}</button>
                         </div>
                       </div>
                     ))}
