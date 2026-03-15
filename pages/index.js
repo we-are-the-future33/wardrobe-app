@@ -54,6 +54,26 @@ export default function Home() {
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
   const [resultTags, setResultTags] = useState(null);
   const [mounted, setMounted] = useState(false);
+  const [recommendMode, setRecommendMode] = useState('today'); // today | week
+  const [weekPlan, setWeekPlan] = useState(() => {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      days.push({
+        date: d.toISOString().split('T')[0],
+        city: '',
+        env: 'indoor',
+        place: '오피스',
+        occasion: '비즈니스 캐주얼',
+        active: i < 5,
+      });
+    }
+    return days;
+  });
+  const [weekOutfits, setWeekOutfits] = useState([]);
+  const [weekLoading, setWeekLoading] = useState(false);
+  const [packingList, setPackingList] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -199,6 +219,66 @@ export default function Home() {
   };
 
   const deleteCloth = (id) => { if(!confirm('삭제?'))return; const u=clothes.filter(c=>c.id!==id); setClothes(u); LS.set('clothes',u); };
+  const getWeekRecommendation = async () => {
+    const homeCity = settings.home_city;
+    if (!homeCity) return showToast('설정에서 집 지역을 입력해주세요');
+    if (clothes.length === 0) return showToast('먼저 옷을 등록해주세요');
+    const activeDays = weekPlan.filter(d => d.active);
+    if (activeDays.length === 0) return showToast('하루 이상 선택해주세요');
+    setWeekLoading(true); setWeekOutfits([]); setPackingList('');
+    try {
+      const weatherList = await Promise.all(activeDays.map(async d => {
+        const city = d.city || homeCity;
+        try {
+          const r = await fetch(`/api/weather?city=${encodeURIComponent(city)}&time=09:00`);
+          const w = await r.json();
+          return { ...d, city, weather: w };
+        } catch {
+          return { ...d, city, weather: { temp:15, feels_like:13, condition:'정보없음', chance_of_rain:0 } };
+        }
+      }));
+      const cats = ['아우터','상의','하의','원피스','신발'];
+      const clothText = cats.map(cat => {
+        const items = clothes.filter(c => c.category===cat);
+        if (!items.length) return '';
+        return `[${cat}] ${items.map(c=>`${c.name}(${c.temp_min}~${c.temp_max}°C, 선호도:${'★'.repeat(c.preference||3)})`).join(', ')}`;
+      }).filter(Boolean).join('
+');
+      const dayText = weatherList.map(d => {
+        const dateStr = new Date(d.date).toLocaleDateString('ko-KR', { month:'long', day:'numeric', weekday:'short' });
+        return `- ${dateStr}: ${d.city} ${d.weather.temp}°C ${d.weather.condition}, ${d.env==='indoor'?d.place:'실외 활동'}, ${d.occasion}`;
+      }).join('
+');
+      const isTravel = activeDays.some(d => d.city && d.city !== homeCity);
+      const r = await fetch('/api/claude', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          model:'claude-sonnet-4-20250514', max_tokens:2000,
+          system:'패션 스타일리스트. 주간 코디와 짐싸기 리스트를 JSON으로만 반환. 다른 텍스트 없음.',
+          messages:[{ role:'user', content:`다음 주간 일정에 맞는 코디를 추천해주세요.
+
+일정:
+${dayText}
+
+내 옷장:
+${clothText}
+
+${isTravel?'여행이 포함되어 있으니 짐싸기 리스트도 포함해주세요.
+
+':''}
+반드시 아래 JSON 형식으로만 응답:
+{"outfits":[{"date":"YYYY-MM-DD","outer":"이름또는null","top":"이름","bottom":"이름또는null","reason":"한줄이유"}]${isTravel?',"packing_list":["짐 항목1","짐 항목2"]':''}}` }]
+        })
+      });
+      const data = await r.json();
+      const text = data.content?.[0]?.text?.replace(/\`\`\`json|\`\`\`/g,'').trim()||'{}';
+      const parsed = JSON.parse(text);
+      setWeekOutfits(parsed.outfits||[]);
+      if (parsed.packing_list) setPackingList(parsed.packing_list);
+    } catch(e) { showToast(e.message||'오류 발생'); }
+    finally { setWeekLoading(false); }
+  };
+
   const saveSettings = () => { LS.set('settings', settings); showToast('저장됨'); };
   const addSchedule = () => { if(schedules.length>=6)return showToast('최대 6개'); setSchedules([...schedules,{ city:'', time:'18:00', env:'outdoor', place:'실외 이동', isHome:false }]); };
   const updateSchedule = (i, key, val) => setSchedules(schedules.map((s,idx)=>idx===i?{...s,[key]:val}:s));
@@ -226,8 +306,11 @@ export default function Home() {
       {/* 추천 탭 */}
       {tab==='recommend' && (
         <div style={{ padding:20, maxWidth:480, margin:'0 auto' }}>
-          <div style={{ fontSize:18, fontWeight:700, marginBottom:16, letterSpacing:'-0.02em' }}>오늘의 코디</div>
-          <div style={card}>
+          <div style={{ display:'flex', gap:4, marginBottom:16 }}>
+            <button onClick={()=>setRecommendMode('today')} style={{ padding:'8px 18px', borderRadius:99, fontSize:13, fontWeight:500, border:`1px solid ${recommendMode==='today'?S.accent:S.border}`, background:recommendMode==='today'?S.accent:S.surface, color:recommendMode==='today'?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>오늘 코디</button>
+            <button onClick={()=>setRecommendMode('week')} style={{ padding:'8px 18px', borderRadius:99, fontSize:13, fontWeight:500, border:`1px solid ${recommendMode==='week'?S.accent:S.border}`, background:recommendMode==='week'?S.accent:S.surface, color:recommendMode==='week'?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>주간 / 여행</button>
+          </div>
+          {recommendMode==='today' && <><div style={card}>
             <div style={{ fontSize:12, fontWeight:500, color:S.sub, marginBottom:12, textTransform:'uppercase', letterSpacing:'0.04em' }}>일정 입력</div>
             {schedules.map((s,i) => (
               <div key={i} style={{ background:S.bg, borderRadius:S.radiusSm, padding:'9px 10px', marginBottom:6, borderLeft:s.isHome?`3px solid #85B7EB`:'none' }}>
@@ -254,7 +337,32 @@ export default function Home() {
               </select>
             </div>
             <button onClick={getRecommendation} style={{ ...btnPrimary({ width:'100%', marginTop:14 }) }}>코디 추천받기</button>
-          </div>
+          </div></>}
+
+          {recommendMode==='week' && (
+            <div style={card}>
+              <div style={{ fontSize:12, fontWeight:500, color:S.sub, marginBottom:12, textTransform:'uppercase', letterSpacing:'0.04em' }}>주간 일정</div>
+              {weekPlan.map((d, i) => {
+                const dateObj = new Date(d.date);
+                const dateStr = dateObj.toLocaleDateString('ko-KR', { month:'numeric', day:'numeric', weekday:'short' });
+                const isWeekend = dateObj.getDay()===0||dateObj.getDay()===6;
+                return (
+                  <div key={i} style={{ display:'flex', gap:6, alignItems:'center', marginBottom:8, opacity:d.active?1:0.4 }}>
+                    <button onClick={()=>setWeekPlan(weekPlan.map((p,pi)=>pi===i?{...p,active:!p.active}:p))} style={{ width:36, flexShrink:0, padding:'4px 0', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${d.active?S.accent:S.border}`, background:d.active?S.accent:S.surface, color:d.active?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit', textAlign:'center' }}>{dateStr.slice(0,dateStr.indexOf('('))}</button>
+                    <span style={{ fontSize:11, color:isWeekend?'#E24B4A':S.sub, flexShrink:0, width:20 }}>{dateStr.slice(dateStr.indexOf('('))}</span>
+                    <input value={d.city} onChange={e=>setWeekPlan(weekPlan.map((p,pi)=>pi===i?{...p,city:e.target.value}:p))} placeholder={settings.home_city||'도시명'} disabled={!d.active} style={{ flex:1, border:`1px solid ${S.border}`, borderRadius:8, padding:'5px 8px', fontSize:11, fontFamily:'inherit', background:S.surface, color:S.text, outline:'none', minWidth:0 }}/>
+                    <select value={d.place} onChange={e=>setWeekPlan(weekPlan.map((p,pi)=>pi===i?{...p,place:e.target.value,env:INDOOR_PLACES.includes(e.target.value)?'indoor':'outdoor'}:p))} disabled={!d.active} style={{ border:`1px solid ${S.border}`, borderRadius:8, padding:'5px 6px', fontSize:11, fontFamily:'inherit', background:S.surface, color:S.sub, outline:'none', flexShrink:0 }}>
+                      {[...OUTDOOR_PLACES,...INDOOR_PLACES].map(p=><option key={p} value={p}>{p}</option>)}
+                    </select>
+                    <select value={d.occasion} onChange={e=>setWeekPlan(weekPlan.map((p,pi)=>pi===i?{...p,occasion:e.target.value}:p))} disabled={!d.active} style={{ border:`1px solid ${S.border}`, borderRadius:8, padding:'5px 6px', fontSize:11, fontFamily:'inherit', background:S.surface, color:S.sub, outline:'none', flexShrink:0 }}>
+                      {['캐주얼','비즈니스 캐주얼','포멀','야외활동','데이트'].map(o=><option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                );
+              })}
+              <button onClick={getWeekRecommendation} style={{ ...btnPrimary({ width:'100%', marginTop:8 }) }}>주간 코디 추천받기</button>
+            </div>
+          )}
           {weatherList.length>0 && (
             <div style={card}>
               <div style={{ fontSize:12, fontWeight:500, color:S.sub, marginBottom:12 }}>오늘 날씨</div>
@@ -275,6 +383,56 @@ export default function Home() {
                 <div style={{ width:20, height:20, border:`2px solid ${S.border}`, borderTopColor:S.accent, borderRadius:'50%', animation:'spin 0.7s linear infinite' }}></div>
                 <span style={{ fontSize:13, color:S.sub }}>AI가 코디를 고르는 중...</span>
               </div>
+            </div>
+          )}
+
+          {weekLoading && (
+            <div style={card}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ width:20, height:20, border:`2px solid ${S.border}`, borderTopColor:S.accent, borderRadius:'50%', animation:'spin 0.7s linear infinite' }}></div>
+                <span style={{ fontSize:13, color:S.sub }}>7일치 날씨 조회 및 AI 코디 생성 중...</span>
+              </div>
+            </div>
+          )}
+
+          {weekOutfits.length>0 && weekOutfits.map((o,i)=>{
+            const clothMap = Object.fromEntries(clothes.map(c=>[c.name,c]));
+            const dateObj = new Date(o.date);
+            const dateStr = dateObj.toLocaleDateString('ko-KR', { month:'long', day:'numeric', weekday:'short' });
+            const layers = [o.outer&&{label:'아우터',name:o.outer},{label:'상의',name:o.top},o.bottom&&{label:'하의',name:o.bottom}].filter(Boolean);
+            return (
+              <div key={i} style={{ ...card, marginBottom:10 }}>
+                <div style={{ fontSize:12, fontWeight:700, color:S.accent, marginBottom:10 }}>{dateStr}</div>
+                <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10 }}>
+                  {layers.map((l,li)=>{
+                    const c = clothMap[l.name];
+                    return (
+                      <div key={li} style={{ display:'flex', alignItems:'center', gap:6, flex:1 }}>
+                        {li>0&&<span style={{ color:S.hint, fontSize:14 }}>+</span>}
+                        <div style={{ flex:1, textAlign:'center', minWidth:0 }}>
+                          <div style={{ width:'100%', aspectRatio:1, borderRadius:S.radiusSm, background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:4, overflow:'hidden' }}>
+                            {c?.image?<img src={c.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>:<span style={{ fontSize:20 }}>{CAT_EMOJI[c?.category||l.label]||'👔'}</span>}
+                          </div>
+                          <div style={{ fontSize:10, color:S.sub }}>{l.label}</div>
+                          <div style={{ fontSize:10, fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{l.name}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ background:S.bg, borderRadius:S.radiusSm, padding:'8px 10px', fontSize:11, color:S.sub, lineHeight:1.6 }}>{o.reason}</div>
+              </div>
+            );
+          })}
+
+          {packingList && packingList.length>0 && (
+            <div style={{ ...card, border:`1.5px solid #85B7EB` }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'#0C447C', marginBottom:10 }}>✈️ 짐싸기 리스트</div>
+              {packingList.map((item,i)=>(
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 0', borderBottom:`1px solid ${S.border}`, fontSize:13, color:S.text }}>
+                  <span style={{ color:S.hint }}>•</span> {item}
+                </div>
+              ))}
             </div>
           )}
           {outfits.map((o,i)=>{
