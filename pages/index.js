@@ -341,15 +341,23 @@ export default function Home() {
       if (p.error) throw new Error(p.error);
       const item = p.items?.[0] || p;
       // URL 데이터로 현재 item 보강 (주문내역 정보 우선 유지, 빈 것만 채움)
+      // 이미지 URL → 프록시 통해 base64로 변환
+      let imageData = null;
+      if (p.image_url) {
+        try {
+          const imgR = await fetch('/api/proxy-image', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url: p.image_url }) });
+          const imgD = await imgR.json();
+          if (imgD.base64) imageData = `data:${imgD.type||'image/jpeg'};base64,${imgD.base64}`;
+          else imageData = p.image_url; // 프록시 실패시 URL 그대로
+        } catch { imageData = p.image_url; }
+      }
       setOrderItems(o => o.map(x => {
         if (x.id !== itemId) return x;
         return {
           ...x,
-          // URL에서만 가져오는 것
-          image: p.image_url || x.image,
+          image: imageData || x.image,
           style: (item.style||[]).join(', ') || x.style || '',
           material: (item.material||[]).join(', ') || x.material || '',
-          // 주문내역 값 우선, 없으면 URL 값
           brand:    x.brand    || p.brand    || '',
           color:    x.color    || (item.colors?.length===1 ? item.colors[0] : ''),
           colors:   item.colors || [],
@@ -357,7 +365,7 @@ export default function Home() {
           temp_max: x.temp_max || String(item.temp_max || ''),
         };
       }));
-      showToast('URL 정보로 보강됐어요');
+      showToast(imageData && imageData.startsWith('data:') ? '이미지·정보 보강 완료' : 'URL 정보로 보강됐어요 (이미지 제외)');
     } catch(e) { showToast('URL 파싱 실패: ' + e.message); console.error(e); }
     finally { setOrderUrlLoading(m => ({ ...m, [itemId]: false })); }
   };
@@ -1152,7 +1160,7 @@ export default function Home() {
 
       {/* 옷 추가 FAB */}
       {mounted && tab==='closet' && createPortal(
-        <button onClick={()=>{resetModal();setModalOpen(true);}} style={{ position:'fixed', bottom:28, left:'50%', transform:'translateX(-50%)', background:S.accent, color:'#fff', border:'none', borderRadius:99, padding:'15px 0', fontSize:15, fontWeight:700, fontFamily:'inherit', cursor:'pointer', boxShadow:'0 6px 24px rgba(0,0,0,0.25)', zIndex:200, whiteSpace:'nowrap', width:'calc(100% - 80px)', maxWidth:400, display:'block', textAlign:'center' }}>＋ 옷 추가하기</button>,
+        <button onClick={()=>{setSelectMode(false);setSelectedIds(new Set());resetModal();setModalOpen(true);}} style={{ position:'fixed', bottom:28, left:'50%', transform:'translateX(-50%)', background:S.accent, color:'#fff', border:'none', borderRadius:99, padding:'15px 0', fontSize:15, fontWeight:700, fontFamily:'inherit', cursor:'pointer', boxShadow:'0 6px 24px rgba(0,0,0,0.25)', zIndex:200, whiteSpace:'nowrap', width:'calc(100% - 80px)', maxWidth:400, display:'block', textAlign:'center' }}>＋ 옷 추가하기</button>,
         document.body
       )}
 
