@@ -54,6 +54,7 @@ export default function Home() {
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
   const [resultTags, setResultTags] = useState(null);
   const [pendingItems, setPendingItems] = useState([]);
+  const [colorOptions, setColorOptions] = useState([]);
   const [mounted, setMounted] = useState(false);
   const [recommendMode, setRecommendMode] = useState('today'); // today | week
   const [weekPlan, setWeekPlan] = useState(() => {
@@ -164,17 +165,21 @@ export default function Home() {
       if (p.items && p.items.length > 1) {
         // 여러 아이템 - 첫 번째 폼에 채우고 나머지는 pendingItems로
         const first = p.items[0];
-        setClothForm({ name:first.name||'', category:first.category||'상의', temp_min:first.temp_min||'', temp_max:first.temp_max||'', style:(first.style||[]).join(', '), color:(first.colors||[]).join(', '), brand:p.brand||'', price:p.price||'' });
+        const firstColors = first.colors || [];
+        setClothForm({ name:first.name||'', category:first.category||'상의', temp_min:first.temp_min||'', temp_max:first.temp_max||'', style:(first.style||[]).join(', '), color:firstColors.length===1?firstColors[0]:'', brand:p.brand||'', price:p.price||'' });
+        setColorOptions(firstColors.length > 1 ? firstColors : []);
         if (p.image_url) setFetchedImage(p.image_url);
         setResultTags({ ...p, isSet:true, setCount:p.items.length, currentItem:0 });
         setPendingItems(p.items.slice(1).map(item => ({ ...item, brand:p.brand||'', price:p.price||'', image:p.image_url||null })));
       } else {
         // 단품
         const item = p.items?.[0] || p;
-        setClothForm({ name:item.name||'', category:item.category||'상의', temp_min:item.temp_min||'', temp_max:item.temp_max||'', style:(item.style||[]).join(', '), color:(item.colors||[]).join(', '), brand:p.brand||'', price:p.price||'' });
+        const colors = item.colors || [];
+        setClothForm({ name:item.name||'', category:item.category||'상의', temp_min:item.temp_min||'', temp_max:item.temp_max||'', style:(item.style||[]).join(', '), color:colors.length===1?colors[0]:'', brand:p.brand||'', price:p.price||'' });
         if (p.image_url) setFetchedImage(p.image_url);
         setResultTags(p);
         setPendingItems([]);
+        setColorOptions(colors.length > 1 ? colors : []);
       }
     } catch(e) { showToast('상품 정보를 가져오지 못했어요'); }
     finally { setUrlLoading(false); }
@@ -233,7 +238,7 @@ export default function Home() {
   const resetModal = () => {
     setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', brand:'', price:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
-    setResultTags(null); setAddTab('url'); setEditingId(null); setPendingItems([]);
+    setResultTags(null); setAddTab('url'); setEditingId(null); setPendingItems([]); setColorOptions([]);
   };
 
   const openEditModal = (c) => {
@@ -627,6 +632,16 @@ export default function Home() {
                   <input value={clothForm[key]} onChange={e=>setClothForm({...clothForm,[key]:e.target.value})} placeholder={placeholder} style={input()}/>
                 </div>
               ))}
+              {colorOptions.length > 0 && (
+                <div style={{ marginBottom:12, padding:'10px 12px', background:'#E6F1FB', borderRadius:10 }}>
+                  <div style={{ fontSize:12, color:'#0C447C', fontWeight:500, marginBottom:8 }}>구매할 색상을 선택해주세요</div>
+                  <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                    {colorOptions.map(c => (
+                      <button key={c} onClick={()=>{ setClothForm(f=>({...f, color:c})); setColorOptions([]); }} style={{ padding:'5px 12px', borderRadius:99, fontSize:12, fontWeight:500, border:`1px solid ${clothForm.color===c?'#0C447C':'#B5D4F4'}`, background:clothForm.color===c?'#0C447C':'#fff', color:clothForm.color===c?'#fff':'#0C447C', cursor:'pointer', fontFamily:'inherit' }}>{c}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={formRow}>
                 <div style={label}>브랜드</div>
                 <input
