@@ -197,11 +197,11 @@ export default function Home() {
       <nav className={styles.nav}>
         <div className={styles.navTitle}>오늘 뭐 입지</div>
         <div className={styles.navTabs}>
-          {['recommend','closet','settings'].map(t => (
-            <button key={t} className={`${styles.navTab} ${tab===t?styles.active:''}`} onClick={() => setTab(t)}>
-              {t==='recommend'?'추천':t==='closet'?'옷장':'설정'}
-            </button>
-          ))}
+         {['recommend','closet','settings'].map(t => (
+  <button key={t} className={styles.navTab + (tab===t?' '+styles.active:'')} onClick={() => setTab(t)}>
+    {t==='recommend'?'추천':t==='closet'?'옷장':'설정'}
+  </button>
+))}
         </div>
       </nav>
 
