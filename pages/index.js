@@ -156,15 +156,15 @@ export default function Home() {
   const showConfirm = (message, onConfirm) => setConfirm({ message, onConfirm });
 
   const saveClothes = useCallback((updated) => {
-    // 이미지는 별도 저장, clothes 배열에서는 id 참조만
     setClothes(updated);
     const toStore = updated.map(c => {
       const { image, ...rest } = c;
-      if (image && image.startsWith('data:')) {
-        ImageStore.set(c.id, image);
+      if (image) {
+        // data: URL이든 http: URL이든 img_ 키에 저장
+        try { localStorage.setItem('img_' + c.id, image); } catch(e) { console.warn('이미지 저장 실패:', c.id); }
         return { ...rest, hasImage: true };
       }
-      return { ...rest, hasImage: !!image };
+      return { ...rest, hasImage: false };
     });
     LS.set('clothes', toStore);
   }, []);
@@ -492,7 +492,7 @@ export default function Home() {
       setModalOpen(false); resetModal();
       showToast(`"${clothForm.name}" 수정됨`);
     } else {
-      const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image, source_url:shopUrl||'', added_at:new Date().toISOString() };
+      const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image, size:clothForm.size||'', source_url:shopUrl||'', added_at:new Date().toISOString() };
       const updated = [...clothes, newCloth];
       saveClothes(updated);
       if (pendingItems.length>0) {
@@ -510,7 +510,7 @@ export default function Home() {
   };
 
   const resetModal = () => {
-    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', brand:'', price:'', season:'', purchase_date:new Date().toISOString().split('T')[0], preference:3 });
+    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', size:'', brand:'', price:'', season:'', purchase_date:new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
     setResultTags(null); setAddTab('url'); setEditingId(null); setPendingItems([]); setColorOptions([]);
     setBatchMode(false); setBatchItems([]); setBatchUrls(''); setOrderItems([]); setOrderUrlMap({}); setOrderUrlLoading({});
@@ -518,7 +518,7 @@ export default function Home() {
 
   const openEditModal = (c) => {
     setEditingId(c.id);
-    setClothForm({ name:c.name, category:c.category, temp_min:String(c.temp_min), temp_max:String(c.temp_max), style:c.style||'', color:c.color||'', brand:c.brand||'', price:c.price||'', season:c.season||'', purchase_date:c.purchase_date||new Date().toISOString().split('T')[0], preference:c.preference||3 });
+    setClothForm({ name:c.name, category:c.category, temp_min:String(c.temp_min), temp_max:String(c.temp_max), style:c.style||'', color:c.color||'', size:c.size||'', brand:c.brand||'', price:c.price||'', season:c.season||'', purchase_date:c.purchase_date||new Date().toISOString().split('T')[0], preference:c.preference||3 });
     if (c.image) setFetchedImage(c.image);
     setImageBase64(null); setImageType(null); setResultTags(null); setAddTab('url'); setShopUrl('');
     setModalOpen(true);
@@ -1111,6 +1111,10 @@ export default function Home() {
                   <input value={clothForm[k]||''} onChange={e=>setClothForm(f=>({...f,[k]:e.target.value}))} placeholder={p} style={inputSt()}/>
                 </div>
               ))}
+              <div style={formRow}>
+                <div style={labelSt}>사이즈</div>
+                <input value={clothForm.size||''} onChange={e=>setClothForm(f=>({...f,size:e.target.value}))} placeholder="예: M, L, 95, Free" style={inputSt()}/>
+              </div>
               {colorOptions.length>0 && (
                 <div style={{ marginBottom:12, padding:'10px 12px', background:'#E6F1FB', borderRadius:10 }}>
                   <div style={{ fontSize:12, color:'#0C447C', fontWeight:500, marginBottom:8 }}>구매할 색상을 선택해주세요</div>
