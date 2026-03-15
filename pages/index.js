@@ -367,7 +367,9 @@ export default function Home() {
       id: Date.now().toString()+Math.random().toString(36).slice(2),
       name:i.name, brand:i.brand||'', price:i.price||'', color:i.color||'',
       category:i.category||'상의', temp_min:parseInt(i.temp_min)||10, temp_max:parseInt(i.temp_max)||20,
-      image:null, preference:3, purchase_date:i.purchase_date||new Date().toISOString().split('T')[0],
+      image:i.image||null, preference:3,
+      source_url: orderUrlMap[i.id]||'',
+      purchase_date:i.purchase_date||new Date().toISOString().split('T')[0],
       added_at:new Date().toISOString(),
     }));
     const updated = [...clothes, ...newClothes];
@@ -428,6 +430,7 @@ export default function Home() {
       name:i.name, brand:i.brand, price:i.price, category:i.category,
       temp_min:parseInt(i.temp_min)||10, temp_max:parseInt(i.temp_max)||20,
       style:i.style, color:i.color, image:i.image, preference:3,
+      source_url:i.url||'',
       purchase_date:new Date().toISOString().split('T')[0], added_at:new Date().toISOString(),
     }));
     const updated = [...clothes, ...newClothes];
@@ -494,7 +497,7 @@ export default function Home() {
       setModalOpen(false); resetModal();
       showToast(`"${clothForm.name}" 수정됨`);
     } else {
-      const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image, added_at:new Date().toISOString() };
+      const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image, source_url:shopUrl||'', added_at:new Date().toISOString() };
       const updated = [...clothes, newCloth];
       saveClothes(updated);
       if (pendingItems.length>0) {
@@ -813,6 +816,7 @@ export default function Home() {
                     {c.purchase_date && <div style={{ color:S.hint }}>구매 {c.purchase_date.replace(/-/g,'.')}</div>}
                     {c.added_at && <div style={{ color:S.hint, fontSize:9 }}>등록 {new Date(c.added_at).toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(/\. /g,'.').replace(' ',' ')}</div>}
                     {c.last_worn && <div style={{ color:'#85B7EB', fontSize:9 }}>착용 {c.last_worn.replace(/-/g,'.')}</div>}
+                    {c.source_url && <a href={c.source_url} onClick={e=>e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{ color:'#85B7EB', fontSize:9, textDecoration:'none', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🔗 원본 링크</a>}
                     <div style={{ color:'#EF9F27', marginTop:1 }}>{'★'.repeat(c.preference||3)}{'☆'.repeat(5-(c.preference||3))}</div>
                   </div>
                 </div>
