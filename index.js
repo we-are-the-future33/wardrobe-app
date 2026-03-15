@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Head from 'next/head';
 import styles from '../styles/Home.module.css';
 
@@ -365,7 +366,7 @@ export default function Home() {
       )}
 
       {/* 옷 추가 모달 */}
-      {modalOpen && (
+      {modalOpen && typeof document !== 'undefined' && createPortal((
         <div onClick={e=>e.target===e.currentTarget&&setModalOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
           <div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'20px',width:'100%',maxWidth:'480px',maxHeight:'85vh',overflowY:'auto'}}>
             <div style={{fontSize:16,fontWeight:700,marginBottom:16}}>옷 추가</div>
@@ -435,9 +436,12 @@ export default function Home() {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
 
-      {toast && <div style={{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',background:'#2C2C2A',color:'#fff',padding:'10px 20px',borderRadius:99,fontSize:13,zIndex:9999,whiteSpace:'nowrap'}}>{toast}</div>}
+      {toast && typeof document !== 'undefined' && createPortal(
+        <div style={{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',background:'#2C2C2A',color:'#fff',padding:'10px 20px',borderRadius:99,fontSize:13,zIndex:9999,whiteSpace:'nowrap'}}>{toast}</div>,
+        document.body
+      )}
     </>
   );
 }
