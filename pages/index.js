@@ -191,7 +191,9 @@ export default function Home() {
           Promise.all(needWeather.map(async o => {
             try {
               const r = await fetch(`/api/weather?city=${encodeURIComponent(homeCity)}&time=09:00`);
+              if (!r.ok) return null; // 400 등 에러 시 무시
               const w = await r.json();
+              if (w.error) return null; // API 에러 시 무시
               return { date: o.date, weather: w };
             } catch { return null; }
           })).then(results => {
@@ -817,8 +819,8 @@ export default function Home() {
                 {w ? (
                   <>
                     <span>{weatherEmoji(w)}</span>
-                    <span style={{ fontWeight:600, color:S.text }}>{w.temp}°C</span>
-                    {w.feels_like && w.feels_like !== w.temp && <span style={{ fontSize:10 }}>체감 {w.feels_like}°C</span>}
+                    <span style={{ fontWeight:600, color:S.text }}>{w.temp ?? w.temperature ?? w.current?.temp_c ?? '?'}°C</span>
+                    {(w.feels_like ?? w.feelslike_c) != null && (w.feels_like ?? w.feelslike_c) !== (w.temp ?? w.temperature) && <span style={{ fontSize:10 }}>체감 {w.feels_like ?? w.feelslike_c}°C</span>}
                     {(w.chance_of_rain > 40 || (w.condition||'').includes('비')) && (
                       <span style={{ marginLeft:2, fontSize:13 }} title={`강수확률 ${w.chance_of_rain}%`}>☂️</span>
                     )}
@@ -842,7 +844,7 @@ export default function Home() {
                   onClick={()=>{ if(c) openEditModal(c); }}
                   title={c ? '클릭하면 수정' : ''}
                 >
-                  <div style={{ width:'100%', aspectRatio:'3/4', borderRadius:S.radiusSm, background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:4, overflow:'hidden', border:c?`1px solid ${S.border}`:'none', position:'relative' }}>
+                  <div style={{ width:'100%', height:140, borderRadius:S.radiusSm, background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:4, overflow:'hidden', border:c?`1px solid ${S.border}`:'none', position:'relative' }}>
                     {c?.image ? <img src={c.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : <span style={{ fontSize:20 }}>{CAT_EMOJI[c?.category||l.label]||'👔'}</span>}
                     {c && <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0)', transition:'background 0.15s' }} onMouseEnter={e=>e.target.style.background='rgba(0,0,0,0.08)'} onMouseLeave={e=>e.target.style.background='rgba(0,0,0,0)'}/>}
                   </div>
@@ -1107,8 +1109,8 @@ export default function Home() {
           <div style={card}>
             <div style={{ fontSize:12, fontWeight:500, color:S.sub, marginBottom:12 }}>내 정보</div>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', borderBottom:`1px solid ${S.border}` }}>
-              <div style={{ fontSize:14 }}>집 지역<span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>날씨 조회 기준</span></div>
-              <input type="text" value={settings.home_city||''} onChange={e=>setSettings(s=>({...s,home_city:e.target.value}))} placeholder="예: 성남시" style={{ border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'8px 12px', fontSize:13, fontFamily:'inherit', background:S.bg, color:S.text, width:150, outline:'none' }}/>
+              <div style={{ fontSize:14 }}>집 지역<span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>영문 입력 (예: Seoul, Suwon)</span></div>
+              <input type="text" value={settings.home_city||''} onChange={e=>setSettings(s=>({...s,home_city:e.target.value}))} placeholder="예: Seoul, Busan, Suwon" style={{ border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'8px 12px', fontSize:13, fontFamily:'inherit', background:S.bg, color:S.text, width:150, outline:'none' }}/>
             </div>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0' }}>
               <div style={{ fontSize:14 }}>추위 민감도<span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>체감온도 보정</span></div>
