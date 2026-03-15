@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+\import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import Head from 'next/head';
 
@@ -1031,22 +1031,34 @@ export default function Home() {
                             <img src={item.image} style={{ width:52, height:52, objectFit:'cover', borderRadius:6, flexShrink:0, border:`1px solid ${S.border}` }} alt=""/>
                           )}
                           <div style={{ flex:1, minWidth:0 }}>
-                            <input value={item.name} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,name:e.target.value}:b))} style={{ width:'100%', border:`1px solid ${S.border}`, borderRadius:6, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', marginBottom:4, boxSizing:'border-box' }} placeholder="상품명"/>
-                            <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
-                              <input value={item.brand} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,brand:e.target.value}:b))} style={{ width:90, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="브랜드"/>
-                              <input value={item.color} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,color:e.target.value}:b))} style={{ width:70, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="색상"/>
-                              <input value={item.size||''} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,size:e.target.value}:b))} style={{ width:50, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="사이즈"/>
+                            <input value={item.name} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,name:e.target.value}:b))} style={{ width:'100%', border:`1px solid ${S.border}`, borderRadius:6, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', marginBottom:6, boxSizing:'border-box', fontWeight:500 }} placeholder="상품명"/>
+                            {/* 행1: 색상 + 사이즈 - 가장 중요, 크게 */}
+                            <div style={{ display:'grid', gridTemplateColumns:'1fr 80px', gap:4, marginBottom:4 }}>
+                              <div>
+                                <div style={{ fontSize:9, color:S.hint, marginBottom:2 }}>색상 (구매 옵션)</div>
+                                <input value={item.color} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,color:e.target.value}:b))} style={{ width:'100%', border:`1.5px solid #85B7EB`, borderRadius:6, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', background:'#F0F7FF', boxSizing:'border-box' }} placeholder="예: 블랙, 화이트오트밀"/>
+                              </div>
+                              <div>
+                                <div style={{ fontSize:9, color:S.hint, marginBottom:2 }}>사이즈</div>
+                                <input value={item.size||''} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,size:e.target.value}:b))} style={{ width:'100%', border:`1.5px solid #85B7EB`, borderRadius:6, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', background:'#F0F7FF', boxSizing:'border-box' }} placeholder="M, L, 95"/>
+                              </div>
+                            </div>
+                            {/* 행2: 브랜드 + 가격 + 카테고리 */}
+                            <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:4 }}>
+                              <input value={item.brand} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,brand:e.target.value}:b))} style={{ flex:1, minWidth:70, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="브랜드"/>
                               <input value={item.price} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,price:e.target.value}:b))} style={{ width:80, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="가격"/>
                               <select value={item.category} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,category:e.target.value}:b))} style={{ border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 6px', fontSize:11, fontFamily:'inherit', outline:'none' }}>
                                 {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
                               </select>
                             </div>
-                            <div style={{ display:'flex', gap:4, marginTop:4, alignItems:'center' }}>
-                              <input value={item.purchase_date} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,purchase_date:e.target.value}:b))} style={{ width:110, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="구매일자"/>
-                              <input value={item.temp_min} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,temp_min:e.target.value}:b))} style={{ width:40, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="최저"/>
+                            {/* 행3: 구매일자 + 온도 */}
+                            <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+                              <input value={item.purchase_date} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,purchase_date:e.target.value}:b))} style={{ width:100, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="구매일자"/>
+                              <span style={{ fontSize:10, color:S.hint }}>온도</span>
+                              <input value={item.temp_min} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,temp_min:e.target.value}:b))} style={{ width:36, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 5px', fontSize:11, fontFamily:'inherit', outline:'none', textAlign:'center' }} placeholder="최저"/>
                               <span style={{ fontSize:11, color:S.sub }}>~</span>
-                              <input value={item.temp_max} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,temp_max:e.target.value}:b))} style={{ width:40, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="최고"/>
-                              <span style={{ fontSize:11, color:S.sub }}>°C</span>
+                              <input value={item.temp_max} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,temp_max:e.target.value}:b))} style={{ width:36, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 5px', fontSize:11, fontFamily:'inherit', outline:'none', textAlign:'center' }} placeholder="최고"/>
+                              <span style={{ fontSize:10, color:S.sub }}>°C</span>
                             </div>
                           </div>
                           <button onClick={()=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,checked:!b.checked}:b))} style={{ width:24, height:24, borderRadius:6, border:`1.5px solid ${item.checked?S.accent:S.border}`, background:item.checked?S.accent:'#fff', color:'#fff', fontSize:14, cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>{item.checked?'✓':''}</button>
