@@ -332,7 +332,7 @@ export default function Home() {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({
             model:'claude-sonnet-4-20250514', max_tokens:1500,
-            system:'쇼핑몰 주문 내역 이미지 분석. JSON만 반환. 카테고리: 아우터/상의/하의/원피스/신발/액세서리. 온도: 반팔23~35, 긴팔17~24, 맨투맨12~20, 니트/가디건10~20, 자켓12~20, 코트-5~10, 패딩-15~5, 반바지23~35, 슬랙스10~28, 청바지5~22. 색상과 사이즈는 주문 옵션에서 정확히 읽을 것. 중요: 2PACK, 2pack, 세트, SET 등 묶음 상품은 개수만큼 개별 아이템으로 분리할 것 (예: [2PACK] 티셔츠 → 티셔츠 2개). 세트 상품의 구성이 다른 경우(상의+하의 세트 등)도 각각 분리. {"items":[{"name":"상품명(팩/세트 표기 제거)","brand":"브랜드","color":"색상(예:블랙,화이트오트밀)","size":"사이즈(예:M,L,XL,95,100,Free)","price":"가격","category":"카테고리","temp_min":숫자,"temp_max":숫자,"purchase_date":"YYYY-MM-DD"}]}',
+            system:'쇼핑몰 주문 내역 이미지 분석. JSON만 반환. 카테고리: 아우터/상의/하의/원피스/신발/액세서리. 온도: 반팔23~35, 긴팔17~24, 맨투맨12~20, 니트/가디건10~20, 자켓12~20, 코트-5~10, 패딩-15~5, 반바지23~35, 슬랙스10~28, 청바지5~22. 색상과 사이즈는 주문 옵션에서 정확히 읽을 것. 소재는 상품명에서 추론(예:코튼→면, 니트→울/아크릴, 린넨, 데님 등). 계절: 봄/가을(10~22도), 여름(23~35도), 겨울(-15~12도), 사계절. 2PACK/세트는 개수만큼 개별 분리. {"items":[{"name":"상품명(팩/세트 표기 제거)","brand":"브랜드","color":"색상","size":"사이즈","price":"가격","category":"카테고리","material":["소재"],"season":"계절","temp_min":숫자,"temp_max":숫자,"purchase_date":"YYYY-MM-DD"}]}',
             messages:[{ role:'user', content:[
               { type:'image', source:{ type:'base64', media_type:mt, data:b64 } },
               { type:'text', text:'모든 상품 정보를 추출해주세요. 색상은 실제 구매 색상으로.' }
@@ -350,7 +350,10 @@ export default function Home() {
           id: Math.random().toString(36).slice(2),
           ...item, checked:true,
           temp_min:String(item.temp_min||''), temp_max:String(item.temp_max||''),
-          size:item.size||'', image:null,
+          size:item.size||'',
+          material: Array.isArray(item.material) ? item.material.join(', ') : (item.material||''),
+          season: item.season||'',
+          image:null,
         }));
       const failed = results.filter(r => r.status === 'rejected').length;
       setOrderItems(allItems);
@@ -377,8 +380,9 @@ export default function Home() {
         return {
           ...x,
           image: imageData || x.image,
-          style: (item.style||[]).join(', ') || x.style || '',
+          style:    (item.style||[]).join(', ')    || x.style    || '',
           material: (item.material||[]).join(', ') || x.material || '',
+          season:   item.season || x.season || '',
           brand:    x.brand    || p.brand    || '',
           color:    x.color    || (item.colors?.length===1 ? item.colors[0] : ''),
           colors:   item.colors || [],
@@ -400,6 +404,7 @@ export default function Home() {
       name:i.name, brand:i.brand||'', price:i.price||'', color:i.color||'', size:i.size||'',
       category:i.category||'상의', temp_min:parseInt(i.temp_min)||10, temp_max:parseInt(i.temp_max)||20,
       image:i.image||null, preference:3,
+      style:i.style||'', material:i.material||'', season:i.season||'',
       source_url: orderUrlMap[i.id]||'',
       purchase_date:i.purchase_date||new Date().toISOString().split('T')[0],
       added_at:new Date().toISOString(),
@@ -1089,9 +1094,17 @@ export default function Home() {
                       <div key={item.id} style={{ border:`1.5px solid ${item.checked?S.accent:S.border}`, borderRadius:10, padding:'10px 12px', marginBottom:8 }}>
                         {/* 상단: 이미지 + 인풋들 + 체크박스 */}
                         <div style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
-                          {item.image && (
-                            <img src={item.image} style={{ width:52, height:52, objectFit:'cover', borderRadius:6, flexShrink:0, border:`1px solid ${S.border}` }} alt=""/>
-                          )}
+                          {/* 이미지 영역 - 항상 고정 크기 */}
+                          <div style={{ width:52, height:52, borderRadius:6, flexShrink:0, border:`1px solid ${S.border}`, overflow:'hidden', background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', position:'relative' }}>
+                            {item.image ? (
+                              <img src={item.image} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt=""/>
+                            ) : (
+                              <>
+                                <div style={{ fontSize:16 }}>{CAT_EMOJI[item.category]||'👔'}</div>
+                                {item.color && <div style={{ fontSize:8, color:S.sub, textAlign:'center', padding:'0 2px', lineHeight:1.2, marginTop:2, maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.color}</div>}
+                              </>
+                            )}
+                          </div>
                           <div style={{ flex:1, minWidth:0 }}>
                             <input value={item.name} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,name:e.target.value}:b))} style={{ width:'100%', border:`1px solid ${S.border}`, borderRadius:6, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', marginBottom:6, boxSizing:'border-box', fontWeight:500 }} placeholder="상품명"/>
                             {/* 행1: 색상 + 사이즈 - 가장 중요, 크게 */}
@@ -1104,6 +1117,11 @@ export default function Home() {
                                 <div style={{ fontSize:9, color:S.hint, marginBottom:2 }}>사이즈</div>
                                 <input value={item.size||''} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,size:e.target.value}:b))} style={{ width:'100%', border:`1px solid ${S.border}`, borderRadius:6, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', background:S.surface, boxSizing:'border-box' }} placeholder="M, L, 95"/>
                               </div>
+                            </div>
+                            {/* 행1.5: 소재 + 계절 */}
+                            <div style={{ display:'flex', gap:4, marginBottom:4 }}>
+                              <input value={item.material||''} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,material:e.target.value}:b))} style={{ flex:1, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="소재 (예: 면, 폴리에스터)"/>
+                              <input value={item.season||''} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,season:e.target.value}:b))} style={{ width:70, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="계절"/>
                             </div>
                             {/* 행2: 브랜드 + 가격 + 카테고리 */}
                             <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:4 }}>
@@ -1152,7 +1170,8 @@ export default function Home() {
                                 {item.material && item.material.split(',').map(s=>s.trim()).filter(Boolean).map(s=>(
                                   <span key={s} style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background:'#FAEEDA', color:'#633806' }}>{s}</span>
                                 ))}
-                                {!item.style && !item.material && !item.image && <span style={{ fontSize:10, color:'#888' }}>추가 정보 없음</span>}
+                                {item.season && <span style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background:'#EAF3DE', color:'#27500A' }}>{item.season}</span>}
+                                {!item.style && !item.material && !item.season && !item.image && <span style={{ fontSize:10, color:'#888' }}>추가 정보 없음</span>}
                               </div>
                             </div>
                           )}
