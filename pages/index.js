@@ -1,4 +1,4 @@
-\import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import Head from 'next/head';
 
@@ -10,7 +10,31 @@ const LS = {
 
 // 이미지를 별도 키로 분리 저장 (5MB 한계 분산)
 const ImageStore = {
-  set: (id, dataUrl) => { try { localStorage.setItem('img_'+id, dataUrl); } catch(e) { console.warn('이미지 저장 실패 (용량 초과 가능성):', e); return false; } return true; },
+  // 이미지를 최대 400px로 리사이즈 후 저장 (용량 절약)
+  set: (id, dataUrl) => {
+    if (!dataUrl) return false;
+    // http URL이면 그냥 저장 (base64 아님)
+    if (!dataUrl.startsWith('data:')) {
+      try { localStorage.setItem('img_'+id, dataUrl); return true; } catch { return false; }
+    }
+    try {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 400;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const resized = canvas.toDataURL('image/jpeg', 0.75);
+        try { localStorage.setItem('img_'+id, resized); }
+        catch(e) { console.warn('이미지 저장 실패:', id, e); }
+      };
+      img.src = dataUrl;
+      return true;
+    } catch(e) { console.warn('이미지 리사이즈 실패:', e); return false; }
+  },
   get: (id) => { try { return localStorage.getItem('img_'+id) || null; } catch { return null; } },
   del: (id) => { try { localStorage.removeItem('img_'+id); } catch {} },
 };
@@ -160,8 +184,7 @@ export default function Home() {
     const toStore = updated.map(c => {
       const { image, ...rest } = c;
       if (image) {
-        // data: URL이든 http: URL이든 img_ 키에 저장
-        try { localStorage.setItem('img_' + c.id, image); } catch(e) { console.warn('이미지 저장 실패:', c.id); }
+        ImageStore.set(c.id, image); // 리사이즈 후 비동기 저장
         return { ...rest, hasImage: true };
       }
       return { ...rest, hasImage: false };
