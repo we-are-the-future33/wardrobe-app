@@ -10,31 +10,34 @@ const LS = {
 
 // 이미지를 별도 키로 분리 저장 (5MB 한계 분산)
 const ImageStore = {
-  // 이미지를 최대 400px로 리사이즈 후 저장 (용량 절약)
-  set: (id, dataUrl) => {
-    if (!dataUrl) return false;
-    // http URL이면 그냥 저장 (base64 아님)
+  // 이미지를 최대 400px로 리사이즈 후 저장 (Promise 반환 - 완료 보장)
+  set: (id, dataUrl) => new Promise((resolve) => {
+    if (!dataUrl) return resolve(false);
+    // http URL이면 그냥 저장
     if (!dataUrl.startsWith('data:')) {
-      try { localStorage.setItem('img_'+id, dataUrl); return true; } catch { return false; }
+      try { localStorage.setItem('img_'+id, dataUrl); resolve(true); } catch { resolve(false); }
+      return;
     }
     try {
       const img = new Image();
       img.onload = () => {
-        const MAX = 400;
-        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-        const w = Math.round(img.width * scale);
-        const h = Math.round(img.height * scale);
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        const resized = canvas.toDataURL('image/jpeg', 0.75);
-        try { localStorage.setItem('img_'+id, resized); }
-        catch(e) { console.warn('이미지 저장 실패:', id, e); }
+        try {
+          const MAX = 400;
+          const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+          const w = Math.round(img.width * scale);
+          const h = Math.round(img.height * scale);
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          const resized = canvas.toDataURL('image/jpeg', 0.75);
+          localStorage.setItem('img_'+id, resized);
+          resolve(true);
+        } catch(e) { console.warn('이미지 저장 실패:', id, e); resolve(false); }
       };
+      img.onerror = () => { console.warn('이미지 로드 실패:', id); resolve(false); };
       img.src = dataUrl;
-      return true;
-    } catch(e) { console.warn('이미지 리사이즈 실패:', e); return false; }
-  },
+    } catch(e) { console.warn('이미지 리사이즈 실패:', e); resolve(false); }
+  }),
   get: (id) => { try { return localStorage.getItem('img_'+id) || null; } catch { return null; } },
   del: (id) => { try { localStorage.removeItem('img_'+id); } catch {} },
 };
@@ -180,16 +183,17 @@ export default function Home() {
 
   const showConfirm = (message, onConfirm) => setConfirm({ message, onConfirm });
 
-  const saveClothes = useCallback((updated) => {
+  const saveClothes = useCallback(async (updated) => {
     setClothes(updated);
-    const toStore = updated.map(c => {
+    // 이미지 저장 완료 기다린 후 LS 저장
+    const toStore = await Promise.all(updated.map(async c => {
       const { image, ...rest } = c;
       if (image) {
-        ImageStore.set(c.id, image); // 리사이즈 후 비동기 저장
+        await ImageStore.set(c.id, image); // 완료 보장
         return { ...rest, hasImage: true };
       }
       return { ...rest, hasImage: false };
-    });
+    }));
     LS.set('clothes', toStore);
   }, []);
 
@@ -328,7 +332,7 @@ export default function Home() {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({
             model:'claude-sonnet-4-20250514', max_tokens:1500,
-            system:'쇼핑몰 주문 내역 이미지 분석. JSON만 반환. 카테고리: 아우터/상의/하의/원피스/신발/액세서리. 온도: 반팔23~35, 긴팔17~24, 맨투맨12~20, 니트/가디건10~20, 자켓12~20, 코트-5~10, 패딩-15~5, 반바지23~35, 슬랙스10~28, 청바지5~22. 색상과 사이즈는 주문 옵션에서 정확히 읽을 것. {"items":[{"name":"상품명","brand":"브랜드","color":"색상(예:블랙,화이트오트밀)","size":"사이즈(예:M,L,XL,95,100,Free)","price":"가격","category":"카테고리","temp_min":숫자,"temp_max":숫자,"purchase_date":"YYYY-MM-DD"}]}',
+            system:'쇼핑몰 주문 내역 이미지 분석. JSON만 반환. 카테고리: 아우터/상의/하의/원피스/신발/액세서리. 온도: 반팔23~35, 긴팔17~24, 맨투맨12~20, 니트/가디건10~20, 자켓12~20, 코트-5~10, 패딩-15~5, 반바지23~35, 슬랙스10~28, 청바지5~22. 색상과 사이즈는 주문 옵션에서 정확히 읽을 것. 중요: 2PACK, 2pack, 세트, SET 등 묶음 상품은 개수만큼 개별 아이템으로 분리할 것 (예: [2PACK] 티셔츠 → 티셔츠 2개). 세트 상품의 구성이 다른 경우(상의+하의 세트 등)도 각각 분리. {"items":[{"name":"상품명(팩/세트 표기 제거)","brand":"브랜드","color":"색상(예:블랙,화이트오트밀)","size":"사이즈(예:M,L,XL,95,100,Free)","price":"가격","category":"카테고리","temp_min":숫자,"temp_max":숫자,"purchase_date":"YYYY-MM-DD"}]}',
             messages:[{ role:'user', content:[
               { type:'image', source:{ type:'base64', media_type:mt, data:b64 } },
               { type:'text', text:'모든 상품 정보를 추출해주세요. 색상은 실제 구매 색상으로.' }
