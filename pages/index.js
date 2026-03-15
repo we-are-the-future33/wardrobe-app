@@ -300,6 +300,7 @@ export default function Home() {
             const diffDays = Math.floor((today - new Date(c.last_worn)) / 86400000);
             if (diffDays < 2) return `${c.name}(착용불가-${diffDays}일전착용)`;
           }
+          if ((c.preference||3) <= 1) return `${c.name}(추천제외)`;
           return `${c.name}(${c.temp_min}~${c.temp_max}C,선호도${c.preference||3})`;
         }).join(', ');
       }).filter(Boolean).join('\n');
@@ -312,7 +313,7 @@ export default function Home() {
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:1000,
           system:'패션 스타일리스트. 옷장과 날씨로 최적 코디를 JSON으로만 추천. 다른 텍스트 없음.',
-          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n실외 최저체감: ${minTemp}°C\n${hasRain?'우천 가능':''}\n일정: ${occasion}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 선호도 높은 옷 우선. (착용불가) 표시된 옷은 절대 추천 금지.\n레이어링: ${settings.layering==='inner'?'셔츠/자켓 안에 이너 티셔츠를 받쳐 입는 것을 선호':settings.layering==='no_inner'?'셔츠/자켓 안에 이너 없이 단독 착용 선호':'상황에 따라 자유롭게 레이어링 결정'}.\n\n{"outfits":[{"outer":"이름또는null","top":"이름","inner":"이너티셔츠이름또는null","bottom":"이름또는null","reason":"이유"}]}` }]
+          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n실외 최저체감: ${minTemp}°C\n${hasRain?'우천 가능':''}\n일정: ${occasion}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 선호도 높은 옷 우선. (착용불가)(추천제외) 표시된 옷은 절대 추천 금지.\n레이어링: ${settings.layering==='inner'?'셔츠/자켓 안에 이너 티셔츠를 받쳐 입는 것을 선호':settings.layering==='no_inner'?'셔츠/자켓 안에 이너 없이 단독 착용 선호':'상황에 따라 자유롭게 레이어링 결정'}.\n\n{"outfits":[{"outer":"이름또는null","top":"이름","inner":"이너티셔츠이름또는null","bottom":"이름또는null","reason":"이유"}]}` }]
         })
       });
       const data = await r.json();
@@ -637,6 +638,7 @@ export default function Home() {
             const diffDays = Math.floor((today - new Date(c.last_worn)) / 86400000);
             if (diffDays<2) return `${c.name}(착용불가)`;
           }
+          if ((c.preference||3) <= 1) return `${c.name}(추천제외)`;
           return `${c.name}(${c.temp_min}~${c.temp_max}C)`;
         }).join(', ');
       }).filter(Boolean).join('\n');
@@ -651,7 +653,7 @@ export default function Home() {
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:2000,
           system:'패션 스타일리스트. 주간 코디를 JSON으로만 반환. 다른 텍스트 없음. 반드시 각 일정의 [날짜:YYYY-MM-DD]를 date 필드에 그대로 사용할 것. reason에는 날짜/요일 언급 금지, 코디 이유만 간결하게.',
-          messages:[{ role:'user', content:`일정:\n${dayText}\n\n내 옷장:\n${clothText}\n\n각 날짜에 맞는 코디 추천. date 필드는 반드시 위 [날짜:YYYY-MM-DD] 값 그대로 사용.\nJSON만 응답:{"outfits":[{"date":"YYYY-MM-DD","outer":"null가능","top":"이름","bottom":"null가능","reason":"코디이유만"}],"packing_list":["아이템"]}` }]
+          messages:[{ role:'user', content:`일정:\n${dayText}\n\n내 옷장:\n${clothText}\n\n각 날짜에 맞는 코디 추천. date 필드는 반드시 위 [날짜:YYYY-MM-DD] 값 그대로 사용. (착용불가)(추천제외) 표시된 옷 절대 사용 금지. top과 bottom 모두 필수(원피스 제외시). outer만 null 가능.\nJSON만 응답:{"outfits":[{"date":"YYYY-MM-DD","outer":"null또는이름","top":"이름(필수)","bottom":"이름(필수)","reason":"코디이유만"}],"packing_list":["아이템"]}` }]
         })
       });
       const data = await r.json();
@@ -717,6 +719,7 @@ export default function Home() {
             const diffDays = Math.floor((today - new Date(c.last_worn)) / 86400000);
             if (diffDays<2) return c.name+'(착용불가)';
           }
+          if ((c.preference||3) <= 1) return c.name+'(추천제외)';
           return c.name+'('+c.temp_min+'~'+c.temp_max+'C)';
         }).join(', ');
       }).filter(Boolean).join('\n');
@@ -797,10 +800,10 @@ export default function Home() {
   const OutfitCard = ({ outfit, index, showDate }) => {
     const clothMap = Object.fromEntries(clothes.map(c=>[c.name,c]));
     const layers = [
-      outfit.outer && { label:'아우터', name:outfit.outer },
-      { label:'상의', name:outfit.top },
-      outfit.bottom && { label:'하의', name:outfit.bottom },
-    ].filter(l=>l&&l.name&&l.name!=='null');
+      outfit.outer && outfit.outer!=='null' && { label:'아우터', name:outfit.outer },
+      outfit.top && outfit.top!=='null' && { label:'상의', name:outfit.top },
+      outfit.bottom && outfit.bottom!=='null' && { label:'하의', name:outfit.bottom },
+    ].filter(Boolean);
     const w = outfit.weather;
     return (
       <div style={{ ...card, display:'flex', flexDirection:'column' }}>
