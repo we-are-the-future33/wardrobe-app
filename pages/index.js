@@ -253,20 +253,7 @@ export default function Home() {
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:2000,
           system:'패션 스타일리스트. 주간 코디와 짐싸기 리스트를 JSON으로만 반환. 다른 텍스트 없음.',
-          messages:[{ role:'user', content:`다음 주간 일정에 맞는 코디를 추천해주세요.
-
-일정:
-${dayText}
-
-내 옷장:
-${clothText}
-
-${isTravel?'여행이 포함되어 있으니 짐싸기 리스트도 포함해주세요.
-
-':''}
-반드시 아래 JSON 형식으로만 응답:
-{"outfits":[{"date":"YYYY-MM-DD","outer":"이름또는null","top":"이름","bottom":"이름또는null","reason":"한줄이유"}]${isTravel?',"packing_list":["짐 항목1","짐 항목2"]':''}}` }]
-        })
+messages:[{ role:'user', content:'일정:\n'+dayText+'\n\n내 옷장:\n'+clothText+'\n\n'+(isTravel?'여행 포함. 짐싸기 리스트 포함.\n\n':'')+'JSON만 응답: {\"outfits\":[{\"date\":\"YYYY-MM-DD\",\"outer\":\"이름또는null\",\"top\":\"이름\",\"bottom\":\"이름또는null\",\"reason\":\"한줄이유\"}]'+(isTravel?',\"packing_list\":[\"항목1\"]':'')+'}' }]
       });
       const data = await r.json();
       const text = data.content?.[0]?.text?.replace(/\`\`\`json|\`\`\`/g,'').trim()||'{}';
