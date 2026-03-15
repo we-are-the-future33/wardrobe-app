@@ -685,7 +685,7 @@ export default function Home() {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:2000,
-          system:'패션 스타일리스트. 주간 코디를 JSON으로만 반환. 다른 텍스트 없음. 반드시 각 일정의 [날짜:YYYY-MM-DD]를 date 필드에 그대로 사용할 것. reason에는 날짜/요일 언급 금지, 코디 이유만 간결하게. 온도별 아우터 규칙: 체감 15°C 이하 → 아우터 필수, 10°C 이하 → 두꺼운 아우터 우선, 15°C 초과 → 아우터 선택.',
+          system:'패션 스타일리스트. 주간 코디를 JSON으로만 반환. 다른 텍스트 없음. 반드시 각 일정의 [날짜:YYYY-MM-DD]를 date 필드에 그대로 복사할 것. 년도를 임의로 변경하지 말 것. reason에는 날짜/요일 언급 금지, 코디 이유만 간결하게. 온도별 아우터 규칙: 체감 15°C 이하 → 아우터 필수, 10°C 이하 → 두꺼운 아우터 우선, 15°C 초과 → 아우터 선택.',
           messages:[{ role:'user', content:`일정:\n${dayText}\n\n내 옷장:\n${clothText}\n\n각 날짜에 맞는 코디 추천. date 필드는 반드시 위 [날짜:YYYY-MM-DD] 값 그대로 사용. (착용불가)(추천제외) 표시된 옷 절대 사용 금지. top과 bottom 모두 필수(원피스 제외시). outer만 null 가능.\nJSON만 응답:{"outfits":[{"date":"YYYY-MM-DD","outer2":"추가레이어또는null","outer":"아우터또는null","top":"이름(필수)","bottom":"이름(원피스외필수)","reason":"코디이유만"}],"packing_list":["아이템"]}` }]
         })
       });
@@ -702,11 +702,16 @@ export default function Home() {
           indoorMap[d.date].push({ place: d.place, temp: INDOOR_TEMPS[d.place]||21 });
         }
       });
-      const outfitsWithWeather = (parsed.outfits||[]).map(o=>({
-        ...o,
-        weather: weatherMap[o.date] || null,
-        indoorPlaces: indoorMap[o.date] || [],
-      }));
+      // 날짜 검증 - AI가 잘못된 년도 반환 시 교정
+      const activeDateByMMDD = Object.fromEntries(weatherDays.map(d=>[d.date.slice(5), d.date]));
+      const outfitsWithWeather = (parsed.outfits||[]).map(o=>{
+        let date = o.date||'';
+        const mmdd = date.slice(5);
+        if (mmdd && activeDateByMMDD[mmdd] && activeDateByMMDD[mmdd] !== date) {
+          date = activeDateByMMDD[mmdd]; // 잘못된 년도 교정
+        }
+        return { ...o, date, weather: weatherMap[date] || weatherMap[o.date] || null, indoorPlaces: indoorMap[date] || [] };
+      });
       setWeekOutfits(outfitsWithWeather);
       LS.set('weekOutfits', outfitsWithWeather);
       const pl = parsed.packing_list || [];
@@ -888,6 +893,15 @@ export default function Home() {
 
   const OutfitCard = ({ outfit, index, showDate }) => {
     const clothMap = Object.fromEntries(clothes.map(c=>[c.name,c]));
+    // AI가 이름에 (10~20C) 같은 태그를 붙여 반환하는 경우를 위한 정규화 매칭
+    const findCloth = (name) => {
+      if (!name || name==='null') return null;
+      // 완전 일치
+      if (clothMap[name]) return clothMap[name];
+      // 괄호 앞 이름만으로 검색
+      const baseName = name.replace(/\(.*$/, '').replace(/（.*$/, '').trim();
+      return clothMap[baseName] || clothes.find(c => c.name.includes(baseName) || baseName.includes(c.name)) || null;
+    };
     // 안→밖 순서: 상의 → 이너재킷(outer2) → 아우터(outer) + 하의
     const hasOuter2 = outfit.outer2 && outfit.outer2!=='null';
     const hasOuter = outfit.outer && outfit.outer!=='null';
@@ -931,13 +945,13 @@ export default function Home() {
         {/* 아이템 행 - 고정 높이로 레이아웃 안정화 */}
         <div style={{ display:'flex', alignItems:'flex-start', gap:6, marginBottom:12 }}>
           {layers.map((l,li) => {
-            const c = clothMap[l.name];
+            const c = findCloth(l.name);
             return (
               <div key={l.name+li} style={{ display:'flex', alignItems:'flex-start', gap:6, flex:1, minWidth:0 }}>
                 {li>0 && <span style={{ color:S.hint, fontSize:14, marginTop:30, flexShrink:0 }}>+</span>}
                 <div
                   style={{ flex:1, textAlign:'center', minWidth:0, cursor:'pointer' }}
-                  onClick={()=>{ if(c) openEditModal(c); }}
+                  onClick={()=>{ const fc = findCloth(l.name); if(fc) openEditModal(fc); }}
                   title={c ? '클릭하면 수정' : ''}
                 >
                   <div style={{ width:'100%', height:140, borderRadius:S.radiusSm, background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:4, overflow:'hidden', border:c?`1px solid ${S.border}`:'none', position:'relative' }}>
