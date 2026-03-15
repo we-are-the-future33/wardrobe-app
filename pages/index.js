@@ -941,10 +941,11 @@ export default function Home() {
     // 안→밖 순서: 상의 → 이너재킷(outer2) → 아우터(outer) + 하의
     const hasOuter2 = outfit.outer2 && outfit.outer2!=='null';
     const hasOuter = outfit.outer && outfit.outer!=='null';
+    // 좌→우 순서: 아우터(가장 밖) → 미들레이어 → 상의 → 하의
     const layers = [
-      outfit.top && outfit.top!=='null' && { label:'상의', name:outfit.top, slot:'top' },
-      hasOuter2 && { label: hasOuter ? '미들레이어' : '아우터', name:outfit.outer2, slot:'outer2' },
       hasOuter && { label:'아우터', name:outfit.outer, slot:'outer' },
+      hasOuter2 && { label: hasOuter ? '미들레이어' : '아우터', name:outfit.outer2, slot:'outer2' },
+      outfit.top && outfit.top!=='null' && { label:'상의', name:outfit.top, slot:'top' },
       outfit.bottom && outfit.bottom!=='null' && { label:'하의', name:outfit.bottom, slot:'bottom' },
     ].filter(Boolean);
     const w = outfit.weather;
@@ -978,20 +979,24 @@ export default function Home() {
           </div>
         )}
         {!showDate && <div style={{ fontSize:11, fontWeight:500, color:S.sub, marginBottom:12 }}>코디 {index+1}</div>}
-        {/* 아이템 행 - 고정 높이로 레이아웃 안정화 */}
-        <div style={{ display:'flex', alignItems:'flex-start', gap:6, marginBottom:12 }}>
+        {/* 아이템 행 */}
+        <div style={{ display:'flex', alignItems:'flex-start', gap:4, marginBottom:12 }}>
           {layers.map((l,li) => {
             const c = findCloth(l.name);
+            const isMiddle = l.slot==='outer2' && hasOuter; // 미들레이어 표시 여부
             return (
-              <div key={l.name+li} style={{ display:'flex', alignItems:'flex-start', gap:6, flex:1, minWidth:0 }}>
-                {li>0 && <span style={{ color:S.hint, fontSize:14, marginTop:30, flexShrink:0 }}>+</span>}
+              <div key={l.name+li} style={{ display:'flex', alignItems:'flex-start', gap:4, flex:1, minWidth:0 }}>
+                {li>0 && <span style={{ color:S.hint, fontSize:14, marginTop:28, flexShrink:0 }}>+</span>}
                 <div
                   style={{ flex:1, textAlign:'center', minWidth:0, cursor:'pointer' }}
                   onClick={()=>{ const fc = findCloth(l.name); if(fc) openEditModal(fc); }}
                   title={c ? '클릭하면 수정' : ''}
                 >
-                  <div style={{ width:'100%', height:180, borderRadius:S.radiusSm, background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:4, overflow:'hidden', border:c?`1px solid ${S.border}`:'none', position:'relative' }}>
+                  <div style={{ width:'100%', height:180, borderRadius:S.radiusSm, background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:4, overflow:'hidden', border:c?`1px solid ${S.border}`:'none', position:'relative',
+                    ...(isMiddle ? { outline:`2px solid #85B7EB`, outlineOffset:'-2px' } : {})
+                  }}>
                     {c?.image ? <img src={c.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : <span style={{ fontSize:20 }}>{CAT_EMOJI[c?.category||l.label]||'👔'}</span>}
+                    {isMiddle && <div style={{ position:'absolute', bottom:0, left:0, right:0, background:'rgba(12,68,124,0.75)', padding:'2px 0', fontSize:9, color:'#fff', textAlign:'center', fontWeight:600 }}>이너레이어</div>}
                     {c && <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0)', transition:'background 0.15s' }} onMouseEnter={e=>e.target.style.background='rgba(0,0,0,0.08)'} onMouseLeave={e=>e.target.style.background='rgba(0,0,0,0)'}/>}
                     {/* 개별 재추천 버튼 - 확정되지 않은 날에만 */}
                     {showDate && !confirmedDates.has(outfit.date) && (
@@ -1003,7 +1008,7 @@ export default function Home() {
                       >{regenLoading[outfit.date+'_'+l.slot] ? '…' : '↺'}</button>
                     )}
                   </div>
-                  <div style={{ fontSize:9, color:S.hint }}>{l.label}</div>
+                  <div style={{ fontSize:9, color: isMiddle?'#0C447C':S.hint, fontWeight: isMiddle?600:400 }}>{l.label}</div>
                   <div style={{ fontSize:10, fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{l.name}</div>
                   {c?.color && <div style={{ fontSize:9, color:S.hint, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.color}</div>}
                 </div>
