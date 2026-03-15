@@ -842,9 +842,13 @@ export default function Home() {
 
   const OutfitCard = ({ outfit, index, showDate }) => {
     const clothMap = Object.fromEntries(clothes.map(c=>[c.name,c]));
+    // 안→밖 순서: 상의 → 이너재킷(outer2) → 아우터(outer) + 하의
+    const hasOuter2 = outfit.outer2 && outfit.outer2!=='null';
+    const hasOuter = outfit.outer && outfit.outer!=='null';
     const layers = [
-      outfit.outer && outfit.outer!=='null' && { label:'아우터', name:outfit.outer },
       outfit.top && outfit.top!=='null' && { label:'상의', name:outfit.top },
+      hasOuter2 && { label: hasOuter ? '미들레이어' : '아우터', name:outfit.outer2 },
+      hasOuter && { label:'아우터', name:outfit.outer },
       outfit.bottom && outfit.bottom!=='null' && { label:'하의', name:outfit.bottom },
     ].filter(Boolean);
     const w = outfit.weather;
