@@ -57,20 +57,22 @@ export default function Home() {
   const [recommendMode, setRecommendMode] = useState('today'); // today | week
   const [weekPlan, setWeekPlan] = useState(() => {
     const days = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 28; i++) {
       const d = new Date();
       d.setDate(d.getDate() + i);
+      const dow = d.getDay();
       days.push({
         date: d.toISOString().split('T')[0],
         city: '',
         env: 'indoor',
         place: '오피스',
         occasion: '비즈니스 캐주얼',
-        active: i < 5,
+        active: dow !== 0 && dow !== 6 && i < 5,
       });
     }
     return days;
   });
+  const [weekOffset, setWeekOffset] = useState(0);
   const [weekOutfits, setWeekOutfits] = useState([]);
   const [weekLoading, setWeekLoading] = useState(false);
   const [packingList, setPackingList] = useState('');
@@ -109,7 +111,7 @@ export default function Home() {
       const clothText = cats.map(cat => {
         const items = clothes.filter(c => c.category===cat);
         if (!items.length) return '';
-        const itemDesc = items.map(c => { const stars = Array(c.preference||3).fill('★').join(''); return c.name+'('+c.temp_min+'~'+c.temp_max+'C, '+stars+')'; }).join(', '); return '['+cat+'] '+itemDesc;
+        return '['+cat+'] '+items.map(function(c){ return c.name+'('+c.temp_min+'~'+c.temp_max+'C)'; }).join(', ');
       }).filter(Boolean).join('\n');
       const weatherText = wList.map(w => `- ${w.time} [${w.isIndoor?'실내':'실외'}] ${w.city}: ${w.temp}°C`).join('\n');
       const minTemp = Math.min(...wList.filter(w=>!w.isIndoor).map(w=>w.feels_like).filter(Boolean));
@@ -241,7 +243,7 @@ export default function Home() {
       const clothText = cats.map(cat => {
         const items = clothes.filter(c => c.category===cat);
         if (!items.length) return '';
-        return '['+cat+'] '+items.map(c => c.name+'('+c.temp_min+'~'+c.temp_max+'C, '+Array(c.preference||3).fill('S').join('')+')').join(', ');
+        return '['+cat+'] '+items.map(function(c){ return c.name+'('+c.temp_min+'~'+c.temp_max+'C)'; }).join(', ');
       }).filter(Boolean).join('\n');
       const dayText = weatherList.map(d => {
         const dateStr = new Date(d.date).toLocaleDateString('ko-KR', { month:'long', day:'numeric', weekday:'short' });
@@ -340,7 +342,15 @@ export default function Home() {
           {recommendMode==='week' && (
             <div style={card}>
               <div style={{ fontSize:12, fontWeight:500, color:S.sub, marginBottom:12, textTransform:'uppercase', letterSpacing:'0.04em' }}>주간 일정</div>
-              {weekPlan.map((d, i) => {
+              <div style={{ display:'flex', gap:4, marginBottom:12 }}>
+                {[0,1,2,3].map(w => {
+                  const startD = new Date(); startD.setDate(startD.getDate() + w*7);
+                  const label = w===0?'이번주':w===1?'다음주':w===2?'다다음주':'3주후';
+                  return <button key={w} onClick={()=>setWeekOffset(w)} style={{ flex:1, padding:'6px 0', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${weekOffset===w?S.accent:S.border}`, background:weekOffset===w?S.accent:S.surface, color:weekOffset===w?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{label}</button>;
+                })}
+              </div>
+              {weekPlan.slice(weekOffset*7, weekOffset*7+7).map((d, idx) => {
+                const i = weekOffset*7 + idx;
                 const dateObj = new Date(d.date);
                 const dateStr = dateObj.toLocaleDateString('ko-KR', { month:'numeric', day:'numeric', weekday:'short' });
                 const isWeekend = dateObj.getDay()===0||dateObj.getDay()===6;
