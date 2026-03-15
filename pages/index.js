@@ -241,7 +241,7 @@ export default function Home() {
       const clothText = cats.map(cat => {
         const items = clothes.filter(c => c.category===cat);
         if (!items.length) return '';
-        const stars = Array(c.preference||3).fill('S').join(''); return '['+cat+'] '+items.map(c => c.name+'('+c.temp_min+'~'+c.temp_max+'C, '+Array(c.preference||3).fill('S').join('')+')').join(', ');
+        return '['+cat+'] '+items.map(c => c.name+'('+c.temp_min+'~'+c.temp_max+'C, '+Array(c.preference||3).fill('S').join('')+')').join(', ');
       }).filter(Boolean).join('\n');
       const dayText = weatherList.map(d => {
         const dateStr = new Date(d.date).toLocaleDateString('ko-KR', { month:'long', day:'numeric', weekday:'short' });
@@ -253,9 +253,21 @@ export default function Home() {
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:2000,
           system:'패션 스타일리스트. 주간 코디와 짐싸기 리스트를 JSON으로만 반환. 다른 텍스트 없음.',
-messages:[{ role:'user', content:'일정:\n'+dayText+'\n\n내 옷장:\n'+clothText+'\n\nJSON만 응답: {"outfits":[{"date":"YYYY-MM-DD","outer":"이름또는null","top":"이름","bottom":"이름또는null","reason":"이유"}]}' }]
+          messages:[{ role:'user', content:'다음 주간 일정에 맞는 코디를 추천해주세요.\n\n일정:\n'+dayText+'\n\n내 옷장:\n'+clothText+'\n\n'+(isTravel?'여행 포함, 짐싸기 리스트도 포함.\n\n':'')+'JSON만 응답: {"outfits":[{"date":"YYYY-MM-DD","outer":"이름또는null","top":"이름","bottom":"이름또는null","reason":"한줄이유"}]'+(isTravel?',"packing_list":["항목1"]':'')+'}' }]
+
+
+
+
+
+
+
+
+
+
+
+
         })
-        });
+      });
       const data = await r.json();
       const text = data.content?.[0]?.text?.replace(/\`\`\`json|\`\`\`/g,'').trim()||'{}';
       const parsed = JSON.parse(text);
@@ -582,12 +594,28 @@ messages:[{ role:'user', content:'일정:\n'+dayText+'\n\n내 옷장:\n'+clothTe
               </div>
             )}
             <div style={{ marginTop:12 }}>
-              {[{label:'옷 이름',key:'name',placeholder:'예: 그레이 가디건'},{label:'브랜드',key:'brand',placeholder:'예: 무신사 스탠다드'},{label:'스타일',key:'style',placeholder:'예: 미니멀, 캐주얼'},{label:'색상',key:'color',placeholder:'예: 라이트 그레이'}].map(({label:l,key,placeholder})=>(
+              {[{label:'옷 이름',key:'name',placeholder:'예: 그레이 가디건'},{label:'스타일',key:'style',placeholder:'예: 미니멀, 캐주얼'},{label:'색상',key:'color',placeholder:'예: 라이트 그레이'}].map(({label:l,key,placeholder})=>(
                 <div key={key} style={formRow}>
                   <div style={label}>{l}</div>
                   <input value={clothForm[key]} onChange={e=>setClothForm({...clothForm,[key]:e.target.value})} placeholder={placeholder} style={input()}/>
                 </div>
               ))}
+              <div style={formRow}>
+                <div style={label}>브랜드</div>
+                <input
+                  value={clothForm.brand}
+                  onChange={e=>setClothForm({...clothForm,brand:e.target.value})}
+                  placeholder="예: 무신사 스탠다드"
+                  list="brand-list"
+                  style={input()}
+                  autoComplete="off"
+                />
+                <datalist id="brand-list">
+                  {[...new Set(clothes.map(c=>c.brand).filter(Boolean))].map(b=>(
+                    <option key={b} value={b}/>
+                  ))}
+                </datalist>
+              </div>
               <div style={formRow}>
                 <div style={label}>카테고리</div>
                 <select value={clothForm.category} onChange={e=>setClothForm({...clothForm,category:e.target.value})} style={input()}>
