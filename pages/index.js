@@ -706,36 +706,29 @@ export default function Home() {
     const date = outfit.date;
     setRegenLoading(m=>({...m,[date]:true}));
     try {
-      const homeCity = settings.home_city || '성남시';
       const today = new Date();
+      const confirmedNames = weekOutfits.filter(o=>confirmedDates.has(o.date)).flatMap(o=>[o.outer,o.top,o.bottom,o.inner].filter(Boolean));
       const clothText = ['아우터','상의','하의','원피스','신발'].map(cat => {
         const items = clothes.filter(c=>c.category===cat);
         if (!items.length) return '';
-        // 이미 확정된 코디의 옷은 제외
-        const confirmedNames = weekOutfits.filter(o=>confirmedDates.has(o.date)).flatMap(o=>[o.outer,o.top,o.bottom,o.inner].filter(Boolean));
-        return `[${cat}] `+items.map(c => {
-          if (confirmedNames.includes(c.name)) return `${c.name}(이미확정)`;
+        return '['+cat+'] '+items.map(c => {
+          if (confirmedNames.includes(c.name)) return c.name+'(이미확정)';
           if (c.last_worn) {
             const diffDays = Math.floor((today - new Date(c.last_worn)) / 86400000);
-            if (diffDays<2) return `${c.name}(착용불가)`;
+            if (diffDays<2) return c.name+'(착용불가)';
           }
-          return `${c.name}(${c.temp_min}~${c.temp_max}C)`;
+          return c.name+'('+c.temp_min+'~'+c.temp_max+'C)';
         }).join(', ');
-      }).filter(Boolean).join('
-');
+      }).filter(Boolean).join('\n');
       const dateStr = new Date(date).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
-      const weatherInfo = outfit.weather ? `${outfit.weather.temp}°C ${outfit.weather.condition}` : '';
+      const weatherInfo = outfit.weather ? outfit.weather.temp+'°C '+outfit.weather.condition : '';
+      const prompt = dateStr+' '+weatherInfo+' 날 다른 코디 1가지 추천. (이미확정)(착용불가) 옷 절대 사용 금지.\n\n옷장:\n'+clothText+'\n\n{"outer":"null가능","top":"이름","bottom":"null가능","reason":"이유"}';
       const r = await fetch('/api/claude', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:500,
           system:'패션 스타일리스트. JSON만 반환.',
-          messages:[{ role:'user', content:`${dateStr} ${weatherInfo} 날 다른 코디 1가지 추천. (이미확정)(착용불가) 옷 절대 사용 금지.
-
-옷장:
-${clothText}
-
-{"outer":"null가능","top":"이름","bottom":"null가능","reason":"이유"}` }]
+          messages:[{ role:'user', content:prompt }]
         })
       });
       const data = await r.json();
