@@ -82,6 +82,8 @@ export default function Home() {
   // 옷장
   const [clothes, setClothes] = useState([]);
   const [catFilter, setCatFilter] = useState('전체');
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
 
   // 일정/추천
   const [schedules, setSchedules] = useState([
@@ -521,6 +523,26 @@ export default function Home() {
     });
   };
 
+  const deleteSelected = () => {
+    showConfirm(`선택한 ${selectedIds.size}개를 삭제할까요?`, () => {
+      selectedIds.forEach(id => ImageStore.del(id));
+      const updated = clothes.filter(c => !selectedIds.has(c.id));
+      saveClothes(updated);
+      setSelectedIds(new Set());
+      setSelectMode(false);
+      setConfirm(null);
+    });
+  };
+
+  const toggleSelect = (e, id) => {
+    e.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
   // ── 주간 추천 ─────────────────────────────────────
   const getWeekRecommendation = async () => {
     const homeCity = settings.home_city;
@@ -772,6 +794,16 @@ export default function Home() {
         <div style={{ padding:'20px 32px', maxWidth:1200, margin:'0 auto' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
             <div style={{ fontSize:18, fontWeight:700, letterSpacing:'-0.02em' }}>내 옷장 <span style={{ fontSize:13, color:S.sub, fontWeight:400 }}>{clothes.length}개</span></div>
+            <div style={{ display:'flex', gap:8 }}>
+              {selectMode && selectedIds.size > 0 && (
+                <button onClick={deleteSelected} style={btnDanger({ padding:'7px 14px', fontSize:12 })}>
+                  {selectedIds.size}개 삭제
+                </button>
+              )}
+              <button onClick={()=>{ setSelectMode(m=>!m); setSelectedIds(new Set()); }} style={{ ...btn({ padding:'7px 14px', fontSize:12 }), ...(selectMode?{background:S.bg, borderColor:S.accent, color:S.accent}:{}) }}>
+                {selectMode ? '취소' : '선택 삭제'}
+              </button>
+            </div>
           </div>
           <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
             {['전체',...CATEGORIES.filter(c=>c!=='액세서리')].map(c=>(
@@ -786,8 +818,16 @@ export default function Home() {
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))', gap:12 }}>
               {filtered.map(c=>(
-                <div key={c.id} onClick={()=>openEditModal(c)} style={{ background:S.surface, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'10px 8px', textAlign:'left', position:'relative', cursor:'pointer', display:'flex', flexDirection:'column', height:'100%' }}>
-                  <button onClick={e=>{e.stopPropagation();deleteCloth(c.id);}} style={{ position:'absolute', top:4, right:4, width:18, height:18, borderRadius:'50%', background:S.danger, color:'white', border:'none', fontSize:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1 }}>✕</button>
+                <div key={c.id}
+                  onClick={()=> selectMode ? toggleSelect({stopPropagation:()=>{}}, c.id) : openEditModal(c)}
+                  style={{ background:S.surface, border:`1.5px solid ${selectMode && selectedIds.has(c.id) ? S.accent : S.border}`, borderRadius:S.radiusSm, padding:'10px 8px', textAlign:'left', position:'relative', cursor:'pointer', display:'flex', flexDirection:'column', height:'100%', transition:'border-color 0.15s' }}>
+                  {selectMode ? (
+                    <div onClick={e=>toggleSelect(e, c.id)} style={{ position:'absolute', top:6, right:6, width:20, height:20, borderRadius:6, border:`2px solid ${selectedIds.has(c.id)?S.accent:S.border}`, background:selectedIds.has(c.id)?S.accent:'#fff', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1, cursor:'pointer' }}>
+                      {selectedIds.has(c.id) && <span style={{ color:'#fff', fontSize:12, fontWeight:700 }}>✓</span>}
+                    </div>
+                  ) : (
+                    <button onClick={e=>{e.stopPropagation();deleteCloth(c.id);}} style={{ position:'absolute', top:4, right:4, width:18, height:18, borderRadius:'50%', background:S.danger, color:'white', border:'none', fontSize:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1 }}>✕</button>
+                  )}
                   <div style={{ width:'100%', height:140, borderRadius:8, background:S.bg, overflow:'hidden', flexShrink:0, marginBottom:8, display:'flex', alignItems:'center', justifyContent:'center' }}>
                     {c.image ? <img src={c.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : <span style={{ fontSize:28 }}>{CAT_EMOJI[c.category]||'👔'}</span>}
                   </div>
