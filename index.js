@@ -44,7 +44,8 @@ export default function Home() {
   const [shopUrl, setShopUrl] = useState('');
   const [urlLoading, setUrlLoading] = useState(false);
   const [fetchedImage, setFetchedImage] = useState('');
-  const [clothForm, setClothForm] = useState({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'' });
+  const [removingBg, setRemovingBg] = useState(false);
+  const [clothForm, setClothForm] = useState({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
   const [settings, setSettings] = useState({ home_city:'', cold_sensitivity:0 });
   const [toast, setToast] = useState('');
   const [imageBase64, setImageBase64] = useState(null);
@@ -87,7 +88,7 @@ export default function Home() {
       const clothText = cats.map(cat => {
         const items = clothes.filter(c => c.category===cat);
         if (!items.length) return '';
-        return `[${cat}] ${items.map(c=>`${c.name}(${c.temp_min}~${c.temp_max}°C)`).join(', ')}`;
+        return `[${cat}] ${items.map(c=>`${c.name}(${c.temp_min}~${c.temp_max}°C, 선호도:${'★'.repeat(c.preference||3)})`).join(', ')}`;
       }).filter(Boolean).join('\n');
       const weatherText = wList.map(w => `- ${w.time} [${w.isIndoor?'실내':'실외'}] ${w.city}: ${w.temp}°C`).join('\n');
       const minTemp = Math.min(...wList.filter(w=>!w.isIndoor).map(w=>w.feels_like).filter(Boolean));
@@ -97,7 +98,7 @@ export default function Home() {
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:1000,
           system:'패션 스타일리스트. 옷장과 날씨로 최적 코디를 JSON으로만 추천. 다른 텍스트 없음.',
-          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n실외 최저체감: ${minTemp}°C\n${hasRain?'우천 가능':''}\n일정: ${occasion}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 실내 체류 많으면 이너 중요. 탈착 쉬운 아우터 우선.\n\n{"outfits":[{"outer":"이름또는null","top":"이름","bottom":"이름또는null","reason":"이유"}]}` }]
+          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n실외 최저체감: ${minTemp}°C\n${hasRain?'우천 가능':''}\n일정: ${occasion}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 실내 체류 많으면 이너 중요. 탈착 쉬운 아우터 우선. 선호도 높은 옷(★★★★★, ★★★★)을 우선 추천하되 코디 조화도 함께 고려.\n\n{"outfits":[{"outer":"이름또는null","top":"이름","bottom":"이름또는null","reason":"이유"}]}` }]
         })
       });
       const data = await r.json();
@@ -105,6 +106,40 @@ export default function Home() {
       setOutfits(JSON.parse(text).outfits||[]);
     } catch(e) { showToast(e.message||'오류 발생'); }
     finally { setLoading(false); }
+  };
+
+  const removeBackground = async (imageUrl) => {
+    setRemovingBg(true);
+    try {
+      // 이미지를 fetch해서 blob으로 변환
+      let blob;
+      if (imageUrl.startsWith('data:')) {
+        const res = await fetch(imageUrl);
+        blob = await res.blob();
+      } else {
+        // CORS 문제 있을 수 있어서 프록시 통해서 가져오기
+        const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(imageUrl)}`);
+        blob = await res.blob();
+      }
+      // background-removal 동적 로딩
+      const { removeBackground: removeBg } = await import('@imgly/background-removal');
+      const resultBlob = await removeBg(blob, {
+        publicPath: 'https://unpkg.com/@imgly/background-removal@1.4.5/dist/',
+        progress: () => {},
+      });
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const b64 = e.target.result.split(',')[1];
+        setImageBase64(b64);
+        setImageType('image/png');
+        setFetchedImage(e.target.result);
+      };
+      reader.readAsDataURL(resultBlob);
+    } catch(e) {
+      showToast('누끼 처리 실패: ' + e.message);
+    } finally {
+      setRemovingBg(false);
+    }
   };
 
   const fetchFromUrl = async () => {
@@ -147,7 +182,7 @@ export default function Home() {
     if (!clothForm.name) return showToast('옷 이름을 입력해주세요');
     if (!clothForm.temp_min||!clothForm.temp_max) return showToast('온도 범위를 입력해주세요');
     const image = imageBase64 ? `data:${imageType};base64,${imageBase64}` : (fetchedImage||null);
-    const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), image, added_at:new Date().toISOString() };
+    const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image, added_at:new Date().toISOString() };
     const updated = [...clothes, newCloth];
     setClothes(updated); LS.set('clothes', updated);
     setModalOpen(false); resetModal();
@@ -155,7 +190,7 @@ export default function Home() {
   };
 
   const resetModal = () => {
-    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'' });
+    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
     setResultTags(null); setAddTab('url');
   };
@@ -296,6 +331,7 @@ export default function Home() {
                   </div>
                   <div style={{ fontSize:11, fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.name}</div>
                   <div style={{ fontSize:10, color:S.sub, marginTop:1 }}>{c.category} · {c.temp_min}~{c.temp_max}°C</div>
+                  <div style={{ fontSize:10, color:'#EF9F27', marginTop:1 }}>{'★'.repeat(c.preference||3)}{'☆'.repeat(5-(c.preference||3))}</div>
                 </div>
               ))}
             </div>
@@ -351,7 +387,29 @@ export default function Home() {
                   <input value={shopUrl} onChange={e=>setShopUrl(e.target.value)} placeholder="무신사, 29CM 등 상품 URL" style={{ flex:1, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'9px 12px', fontSize:13, fontFamily:'inherit', outline:'none' }}/>
                   <button onClick={fetchFromUrl} disabled={urlLoading} style={btnPrimary({ flexShrink:0 })}>{urlLoading?'...':'가져오기'}</button>
                 </div>
-                {fetchedImage && <img src={fetchedImage} style={{ width:80, height:80, objectFit:'cover', borderRadius:8, marginBottom:10 }} alt=""/>}
+                {fetchedImage && (
+                  <div style={{ marginBottom:10 }}>
+                    <img src={fetchedImage} style={{ width:80, height:80, objectFit:'cover', borderRadius:8, display:'block', marginBottom:6 }} alt=""/>
+                    <div style={{ display:'flex', gap:6 }}>
+                      <button onClick={()=>document.getElementById('replaceImg').click()} style={{ padding:'5px 10px', borderRadius:8, fontSize:11, fontWeight:500, border:'1px solid #E8E6E0', background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>
+                        🔄 이미지 교체
+                      </button>
+                      <button onClick={()=>removeBackground(fetchedImage)} disabled={removingBg} style={{ padding:'5px 10px', borderRadius:8, fontSize:11, fontWeight:500, border:'1px solid #85B7EB', background:'#E6F1FB', color:'#0C447C', cursor:'pointer', fontFamily:'inherit' }}>
+                        {removingBg ? '처리 중...' : '✂️ 누끼따기'}
+                      </button>
+                    </div>
+                    <input id="replaceImg" type="file" accept="image/*" style={{ display:'none' }} onChange={e=>{
+                      if(!e.target.files[0]) return;
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        setFetchedImage(ev.target.result);
+                        setImageBase64(ev.target.result.split(',')[1]);
+                        setImageType(e.target.files[0].type);
+                      };
+                      reader.readAsDataURL(e.target.files[0]);
+                    }}/>
+                  </div>
+                )}
               </div>
             )}
             {addTab==='photo' && (
@@ -369,6 +427,9 @@ export default function Home() {
                 {(resultTags.material||[]).map(t=><span key={t} style={{ display:'inline-block', padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:500, margin:2, background:'#FAEEDA', color:'#633806' }}>{t}</span>)}
                 {(resultTags.style||[]).map(t=><span key={t} style={{ display:'inline-block', padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:500, margin:2, background:'#E6F1FB', color:'#0C447C' }}>{t}</span>)}
                 {(resultTags.temp_min||resultTags.temp_max)&&<span style={{ display:'inline-block', padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:500, margin:2, background:'#EEEDFE', color:'#3C3489' }}>{resultTags.temp_min||'?'}~{resultTags.temp_max||'?'}°C</span>}
+                {resultTags.images_analyzed>0&&<span style={{ display:'inline-block', padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:500, margin:2, background:'#EAF3DE', color:'#27500A' }}>이미지 {resultTags.images_analyzed}장 분석</span>}
+                {resultTags.detail&&<div style={{ fontSize:11, color:'#633806', marginTop:6, lineHeight:1.5 }}>소재: {resultTags.detail}</div>}
+                {resultTags.care&&<div style={{ fontSize:11, color:'#888780', marginTop:4 }}>세탁: {resultTags.care}</div>}
               </div>
             )}
             <div style={{ marginTop:12 }}>
@@ -391,6 +452,20 @@ export default function Home() {
                     <input value={clothForm[key]} onChange={e=>setClothForm({...clothForm,[key]:e.target.value})} placeholder={placeholder} style={input()}/>
                   </div>
                 ))}
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <div style={formRow}>
+                  <div style={label}>구매 일자</div>
+                  <input type="date" value={clothForm.purchase_date} onChange={e=>setClothForm({...clothForm,purchase_date:e.target.value})} style={input()}/>
+                </div>
+                <div style={formRow}>
+                  <div style={label}>선호도</div>
+                  <div style={{ display:'flex', gap:4, marginTop:4 }}>
+                    {[1,2,3,4,5].map(n=>(
+                      <button key={n} onClick={()=>setClothForm({...clothForm,preference:n})} style={{ flex:1, padding:'7px 0', borderRadius:8, fontSize:16, border:`1px solid ${clothForm.preference>=n?'#EF9F27':'#E8E6E0'}`, background:clothForm.preference>=n?'#FAEEDA':'#fff', cursor:'pointer', lineHeight:1 }}>★</button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
             <div style={{ display:'flex', gap:8, marginTop:16 }}>
