@@ -308,6 +308,7 @@ export default function Home() {
             c.season && `계절:${c.season}`,
             c.style && `스타일:${c.style}`,
             c.color && `색상:${c.color}`,
+            c.occasions && `착용가능:${c.occasions}`,
           ].filter(Boolean).join(',');
           return `${c.name}(${c.temp_min}~${c.temp_max}C,선호도${c.preference||3}${tags?','+tags:''})`;
         }).join(', ');
@@ -338,7 +339,7 @@ export default function Home() {
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:1000,
           system:'패션 스타일리스트. 옷장과 날씨로 최적 코디를 JSON으로만 추천. 다른 텍스트 없음.',
-          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n${hasRain?'우천 가능 ☂️':''}\n일정: ${occasion}\n\n[아우터 결정 - 실외 기준] ${outerRule}\n[상의 두께 결정 - 실내 기준] ${topRule}\n레이어링: ${settings.layering==='inner'?'셔츠/자켓 안에 이너 티셔츠를 받쳐 입는 것을 선호':settings.layering==='no_inner'?'셔츠/자켓 안에 이너 없이 단독 착용 선호':'상황에 따라 자유롭게 레이어링 결정'}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 선호도 높은 옷 우선. (착용불가)(추천제외) 표시된 옷은 절대 추천 금지.\n\n{"outfits":[{"outer2":"아우터위에추가레이어또는null","outer":"아우터또는null","top":"이름(필수)","inner":"이너티셔츠이름또는null","bottom":"이름(원피스외필수)","reason":"이유"}]}` }]
+          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n${hasRain?'우천 가능 ☂️':''}\n일정: ${occasion}\n\n[아우터 결정 - 실외 기준] ${outerRule}\n[상의 두께 결정 - 실내 기준] ${topRule}\n레이어링: ${settings.layering==='inner'?'셔츠/자켓 안에 이너 티셔츠를 받쳐 입는 것을 선호':settings.layering==='no_inner'?'셔츠/자켓 안에 이너 없이 단독 착용 선호':'상황에 따라 자유롭게 레이어링 결정'}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 선호도 높은 옷 우선. (착용불가)(추천제외) 표시된 옷은 절대 추천 금지. 착용가능 상황이 표시된 옷은 해당 상황(occasion)과 일치할 때만 추천할 것.\n\n{"outfits":[{"outer2":"아우터위에추가레이어또는null","outer":"아우터또는null","top":"이름(필수)","inner":"이너티셔츠이름또는null","bottom":"이름(원피스외필수)","reason":"이유"}]}` }]
         })
       });
       const data = await r.json();
@@ -594,7 +595,7 @@ export default function Home() {
   };
 
   const resetModal = () => {
-    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', size:'', material:'', brand:'', price:'', season:'', purchase_date:new Date().toISOString().split('T')[0], preference:3 });
+    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', size:'', material:'', occasions:'', brand:'', price:'', season:'', purchase_date:new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
     setResultTags(null); setAddTab('url'); setEditingId(null); setPendingItems([]); setColorOptions([]);
     setBatchMode(false); setBatchItems([]); setBatchUrls(''); setOrderItems([]); setOrderUrlMap({}); setOrderUrlLoading({});
@@ -602,7 +603,7 @@ export default function Home() {
 
   const openEditModal = (c) => {
     setEditingId(c.id);
-    setClothForm({ name:c.name, category:c.category, temp_min:String(c.temp_min), temp_max:String(c.temp_max), style:c.style||'', color:c.color||'', size:c.size||'', material:c.material||'', brand:c.brand||'', price:c.price||'', season:c.season||'', purchase_date:c.purchase_date||new Date().toISOString().split('T')[0], preference:c.preference||3 });
+    setClothForm({ name:c.name, category:c.category, temp_min:String(c.temp_min), temp_max:String(c.temp_max), style:c.style||'', color:c.color||'', size:c.size||'', material:c.material||'', occasions:c.occasions||'', brand:c.brand||'', price:c.price||'', season:c.season||'', purchase_date:c.purchase_date||new Date().toISOString().split('T')[0], preference:c.preference||3 });
     if (c.image) setFetchedImage(c.image);
     setImageBase64(null); setImageType(null); setResultTags(null); setAddTab('url'); setShopUrl('');
     setModalOpen(true);
@@ -669,6 +670,7 @@ export default function Home() {
             c.season && `계절:${c.season}`,
             c.style && `스타일:${c.style}`,
             c.color && `색상:${c.color}`,
+            c.occasions && `착용가능:${c.occasions}`,
           ].filter(Boolean).join(',');
           return `${c.name}(${c.temp_min}~${c.temp_max}C${tags?','+tags:''})`;
         }).join(', ');
@@ -1449,6 +1451,21 @@ export default function Home() {
               <div style={formRow}>
                 <div style={labelSt}>소재</div>
                 <input value={clothForm.material||''} onChange={e=>setClothForm(f=>({...f,material:e.target.value}))} placeholder="예: 면, 울, 폴리에스터" style={inputSt()}/>
+              </div>
+              <div style={formRow}>
+                <div style={labelSt}>착용 상황<span style={{ fontSize:10, color:S.hint, display:'block', marginTop:1 }}>미선택 시 모든 상황</span></div>
+                <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+                  {['오피스','비즈니스 캐주얼','캐주얼','데이트','야외활동'].map(o=>{
+                    const occasions = (clothForm.occasions||'').split(',').map(s=>s.trim()).filter(Boolean);
+                    const on = occasions.includes(o);
+                    return (
+                      <button key={o} onClick={()=>{
+                        const next = on ? occasions.filter(x=>x!==o) : [...occasions, o];
+                        setClothForm(f=>({...f, occasions: next.join(',')}));
+                      }} style={{ padding:'4px 9px', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${on?S.accent:S.border}`, background:on?S.accent:S.surface, color:on?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{o}</button>
+                    );
+                  })}
+                </div>
               </div>
               <div style={formRow}>
                 <div style={labelSt}>계절</div>
