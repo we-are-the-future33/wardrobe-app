@@ -161,7 +161,7 @@ export default function Home() {
   const [orderUrlLoading, setOrderUrlLoading] = useState({}); // { itemId: bool }
 
   // 설정
-  const [settings, setSettings] = useState({ home_city:'', cold_sensitivity:0 });
+  const [settings, setSettings] = useState({ home_city:'', cold_sensitivity:0, layering:'auto' });
 
   // UI
   const [toast, setToast]         = useState('');
@@ -173,7 +173,7 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
     // clothes는 아래 mounted useEffect에서 이미지 포함해서 로드
-    setSettings(LS.get('settings', { home_city:'', cold_sensitivity:0 }));
+    setSettings(LS.get('settings', { home_city:'', cold_sensitivity:0, layering:'auto' }));
     setWeekPlan(buildWeekPlan());
     setClothForm(f => ({ ...f, purchase_date: new Date().toISOString().split('T')[0] }));
     // 주간 코디 복원
@@ -284,7 +284,7 @@ export default function Home() {
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:1000,
           system:'패션 스타일리스트. 옷장과 날씨로 최적 코디를 JSON으로만 추천. 다른 텍스트 없음.',
-          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n실외 최저체감: ${minTemp}°C\n${hasRain?'우천 가능':''}\n일정: ${occasion}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 선호도 높은 옷 우선. (착용불가) 표시된 옷은 절대 추천 금지.\n\n{"outfits":[{"outer":"이름또는null","top":"이름","bottom":"이름또는null","reason":"이유"}]}` }]
+          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n실외 최저체감: ${minTemp}°C\n${hasRain?'우천 가능':''}\n일정: ${occasion}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 선호도 높은 옷 우선. (착용불가) 표시된 옷은 절대 추천 금지.\n레이어링: ${settings.layering==='inner'?'셔츠/자켓 안에 이너 티셔츠를 받쳐 입는 것을 선호':settings.layering==='no_inner'?'셔츠/자켓 안에 이너 없이 단독 착용 선호':'상황에 따라 자유롭게 레이어링 결정'}.\n\n{"outfits":[{"outer":"이름또는null","top":"이름","inner":"이너티셔츠이름또는null","bottom":"이름또는null","reason":"이유"}]}` }]
         })
       });
       const data = await r.json();
@@ -990,6 +990,16 @@ export default function Home() {
               <select value={settings.cold_sensitivity||0} onChange={e=>setSettings(s=>({...s,cold_sensitivity:parseInt(e.target.value)}))} style={{ border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'8px 10px', fontSize:12, fontFamily:'inherit', background:S.surface, color:S.text, outline:'none' }}>
                 <option value={-3}>추위 많이 탐</option><option value={-1}>약간 추위 탐</option><option value={0}>보통</option><option value={1}>더위 탐</option><option value={3}>더위 많이 탐</option>
               </select>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', borderTop:`1px solid ${S.border}`, marginTop:4 }}>
+              <div style={{ fontSize:14 }}>레이어링 스타일
+                <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>셔츠 안에 이너 착용 여부</span>
+              </div>
+              <div style={{ display:'flex', gap:6 }}>
+                {[['inner','이너 있음'],['no_inner','이너 없음'],['auto','자유롭게']].map(([v,l])=>(
+                  <button key={v} onClick={()=>setSettings(s=>({...s,layering:v}))} style={{ padding:'6px 10px', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${settings.layering===v?S.accent:S.border}`, background:settings.layering===v?S.accent:S.surface, color:settings.layering===v?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{l}</button>
+                ))}
+              </div>
             </div>
             <button onClick={saveSettings} style={btnPrimary({ width:'100%', marginTop:12 })}>저장</button>
           </div>
