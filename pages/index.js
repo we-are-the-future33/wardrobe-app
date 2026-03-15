@@ -109,7 +109,7 @@ export default function Home() {
       const clothText = cats.map(cat => {
         const items = clothes.filter(c => c.category===cat);
         if (!items.length) return '';
-        return `[${cat}] ${items.map(c=>c.name+'('+c.temp_min+'~'+c.temp_max+'°C, 선호도:'+'★'.repeat(c.preference||3)+')').join(', ')}`;
+        const itemDesc = items.map(c => { const stars = Array(c.preference||3).fill('★').join(''); return c.name+'('+c.temp_min+'~'+c.temp_max+'C, '+stars+')'; }).join(', '); return '['+cat+'] '+itemDesc;
       }).filter(Boolean).join('\n');
       const weatherText = wList.map(w => `- ${w.time} [${w.isIndoor?'실내':'실외'}] ${w.city}: ${w.temp}°C`).join('\n');
       const minTemp = Math.min(...wList.filter(w=>!w.isIndoor).map(w=>w.feels_like).filter(Boolean));
@@ -241,7 +241,7 @@ export default function Home() {
       const clothText = cats.map(cat => {
         const items = clothes.filter(c => c.category===cat);
         if (!items.length) return '';
-        return `[${cat}] ${items.map(c=>c.name+'('+c.temp_min+'~'+c.temp_max+'°C, 선호도:'+'★'.repeat(c.preference||3)+')').join(', ')}`;
+        const itemDesc = items.map(c => { const stars = Array(c.preference||3).fill('★').join(''); return c.name+'('+c.temp_min+'~'+c.temp_max+'C, '+stars+')'; }).join(', '); return '['+cat+'] '+itemDesc;
       }).filter(Boolean).join('
 ');
       const dayText = weatherList.map(d => {
