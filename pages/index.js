@@ -316,8 +316,25 @@ export default function Home() {
     }));
     const updated = [...clothes, ...newClothes];
     saveClothes(updated);
-    setModalOpen(false); resetModal();
-    showToast(newClothes.length+'개 저장됨');
+    showToast(newClothes.length+'개 저장됨 — 아래에서 추가 편집하세요');
+    // 저장 후 URL탭으로 전환해 폼에 첫 번째 상품 채움 (이미지/스타일 추가 편집용)
+    const first = toSave[0];
+    setAddTab('url');
+    setClothForm({
+      name: first.name||'',
+      category: first.category||'상의',
+      temp_min: String(parseInt(first.temp_min)||10),
+      temp_max: String(parseInt(first.temp_max)||20),
+      style: '',
+      color: first.color||'',
+      brand: first.brand||'',
+      price: first.price||'',
+      season: '',
+      purchase_date: first.purchase_date||new Date().toISOString().split('T')[0],
+      preference: 3,
+    });
+    setOrderItems([]);
+    setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null); setResultTags(null);
   };
 
   // ── 여러 URL 일괄 등록 ────────────────────────────
