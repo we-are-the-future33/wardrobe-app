@@ -112,30 +112,16 @@ export default function Home() {
   const removeBackground = async (imageUrl) => {
     setRemovingBg(true);
     try {
-      // 이미지를 fetch해서 blob으로 변환
-      let blob;
-      if (imageUrl.startsWith('data:')) {
-        const res = await fetch(imageUrl);
-        blob = await res.blob();
-      } else {
-        // CORS 문제 있을 수 있어서 프록시 통해서 가져오기
-        const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(imageUrl)}`);
-        blob = await res.blob();
-      }
-      // background-removal 동적 로딩
-      const { removeBackground: removeBg } = await import('@imgly/background-removal');
-      const resultBlob = await removeBg(blob, {
-        publicPath: 'https://unpkg.com/@imgly/background-removal@1.4.5/dist/',
-        progress: () => {},
+      const r = await fetch('/api/remove-bg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl })
       });
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const b64 = e.target.result.split(',')[1];
-        setImageBase64(b64);
-        setImageType('image/png');
-        setFetchedImage(e.target.result);
-      };
-      reader.readAsDataURL(resultBlob);
+      const data = await r.json();
+      if (data.error) throw new Error(data.error);
+      setFetchedImage('data:image/png;base64,' + data.base64);
+      setImageBase64(data.base64);
+      setImageType('image/png');
     } catch(e) {
       showToast('누끼 처리 실패: ' + e.message);
     } finally {
