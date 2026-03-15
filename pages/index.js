@@ -1204,7 +1204,12 @@ export default function Home() {
       {/* ── 옷 추가 모달 ── */}
       {mounted && modalOpen && createPortal(
         <div onClick={e=>{ if(e.target!==e.currentTarget) return; const anyLoading = orderLoading||urlLoading||batchLoading||analyzeLoading||Object.values(orderUrlLoading).some(Boolean); if(anyLoading){ showToast('분석 중에는 닫을 수 없어요'); return; } setModalOpen(false); }} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
-          <div style={{ background:'#fff', borderRadius:'20px 20px 0 0', padding:20, width:'100%', maxWidth:480, height:'85vh', overflowY:'auto' }}>
+          <div style={{ background:'#fff', borderRadius:'16px 16px 0 0', padding:'0 0 20px 0', width:'100%', maxWidth:480, height:'85vh', overflowY:'auto', display:'flex', flexDirection:'column' }}>
+            {/* 핸들 바 */}
+            <div style={{ display:'flex', justifyContent:'center', padding:'12px 0 4px', flexShrink:0 }}>
+              <div style={{ width:36, height:4, borderRadius:99, background:'#E0DDD8' }}/>
+            </div>
+            <div style={{ padding:'0 20px 0', flex:1, overflowY:'auto' }}>
             <div style={{ fontSize:16, fontWeight:700, marginBottom:16 }}>
               {editingId ? '옷 수정' : pendingItems.length>0 ? `옷 추가 (${(resultTags?.setCount||pendingItems.length+1)-pendingItems.length}/${resultTags?.setCount||pendingItems.length+1})` : '옷 추가'}
             </div>
@@ -1547,6 +1552,7 @@ export default function Home() {
               <button onClick={()=>{ const anyLoading = orderLoading||urlLoading||batchLoading||analyzeLoading||Object.values(orderUrlLoading).some(Boolean); if(anyLoading){ showToast('분석 중에는 닫을 수 없어요'); return; } setModalOpen(false); }} style={btn({ width:'100%' })}>닫기</button>
             </div>
             )}
+            </div>{/* 내부 스크롤 div 닫기 */}
           </div>
         </div>,
         document.body
