@@ -649,7 +649,7 @@ export default function Home() {
 
       {/* ── 추천 탭 ── */}
       {tab==='recommend' && (
-        <div style={{ padding:20, maxWidth:480, margin:'0 auto' }}>
+        <div style={{ padding:'20px 32px', maxWidth:1200, margin:'0 auto' }}>
           <div style={{ display:'flex', gap:4, marginBottom:16 }}>
             {[['today','오늘 코디'],['week','주간 / 여행']].map(([m,l])=>(
               <button key={m} onClick={()=>setRecommendMode(m)} style={{ padding:'8px 18px', borderRadius:99, fontSize:13, fontWeight:500, border:`1px solid ${recommendMode===m?S.accent:S.border}`, background:recommendMode===m?S.accent:S.surface, color:recommendMode===m?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{l}</button>
@@ -749,7 +749,9 @@ export default function Home() {
           )}
 
           {/* 주간 결과 */}
-          {weekOutfits.map((o,i)=><OutfitCard key={o.date||i} outfit={o} index={i} showDate={true}/>)}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))', gap:12 }}>
+            {weekOutfits.map((o,i)=><OutfitCard key={o.date||i} outfit={o} index={i} showDate={true}/>)}
+          </div>
 
           {packingList && packingList.length>0 && (
             <div style={{ ...card, border:`1.5px solid #85B7EB` }}>
@@ -763,13 +765,15 @@ export default function Home() {
           )}
 
           {/* 오늘 코디 결과 */}
-          {outfits.map((o,i)=><OutfitCard key={i} outfit={o} index={i} showDate={false}/>)}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:12 }}>
+            {outfits.map((o,i)=><OutfitCard key={i} outfit={o} index={i} showDate={false}/>)}
+          </div>
         </div>
       )}
 
       {/* ── 옷장 탭 ── */}
       {tab==='closet' && (
-        <div style={{ padding:20, maxWidth:480, margin:'0 auto' }}>
+        <div style={{ padding:'20px 32px', maxWidth:1200, margin:'0 auto' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
             <div style={{ fontSize:18, fontWeight:700, letterSpacing:'-0.02em' }}>내 옷장 <span style={{ fontSize:13, color:S.sub, fontWeight:400 }}>{clothes.length}개</span></div>
           </div>
@@ -784,7 +788,7 @@ export default function Home() {
               <p style={{ fontSize:14 }}>등록된 옷이 없어요</p>
             </div>
           ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))', gap:12 }}>
               {filtered.map(c=>(
                 <div key={c.id} onClick={()=>openEditModal(c)} style={{ background:S.surface, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'10px 8px', textAlign:'center', position:'relative', cursor:'pointer', display:'flex', flexDirection:'column', height:'100%' }}>
                   <button onClick={e=>{e.stopPropagation();deleteCloth(c.id);}} style={{ position:'absolute', top:4, right:4, width:18, height:18, borderRadius:'50%', background:S.danger, color:'white', border:'none', fontSize:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1 }}>✕</button>
@@ -809,7 +813,7 @@ export default function Home() {
 
       {/* ── 설정 탭 ── */}
       {tab==='settings' && (
-        <div style={{ padding:20, maxWidth:480, margin:'0 auto' }}>
+        <div style={{ padding:'20px 32px', maxWidth:1200, margin:'0 auto' }}>
           <div style={{ fontSize:18, fontWeight:700, marginBottom:16 }}>설정</div>
           <div style={card}>
             <div style={{ fontSize:12, fontWeight:500, color:S.sub, marginBottom:12 }}>내 정보</div>
