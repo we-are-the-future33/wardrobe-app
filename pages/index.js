@@ -308,14 +308,31 @@ export default function Home() {
       }).filter(Boolean).join('\n');
       const weatherText = wList.map(w => `- ${w.time} [${w.isIndoor?'실내':'실외'}] ${w.city}: ${w.temp}°C`).join('\n');
       const outdoorTemps = wList.filter(w=>!w.isIndoor).map(w=>w.feels_like).filter(Boolean);
+      const indoorCount = wList.filter(w=>w.isIndoor).length;
+      const outdoorCount = wList.filter(w=>!w.isIndoor).length;
       const minTemp = outdoorTemps.length ? Math.min(...outdoorTemps) : 15;
       const hasRain = wList.some(w=>!w.isIndoor && w.chance_of_rain>30);
+      // 실외: 아우터 결정 / 실내: 상의 두께 결정
+      const indoorTemps = wList.filter(w=>w.isIndoor).map(w=>w.temp).filter(Boolean);
+      const avgIndoorTemp = indoorTemps.length ? Math.round(indoorTemps.reduce((a,b)=>a+b,0)/indoorTemps.length) : 22;
+      const outerRule = outdoorTemps.length === 0
+        ? '실외 이동 없음 → 아우터(outer) 반드시 null'
+        : minTemp <= 10
+          ? `실외 체감 ${minTemp}°C → 두꺼운 아우터 필수(코트/패딩/점퍼), outer에 반드시 지정`
+          : minTemp <= 15
+            ? `실외 체감 ${minTemp}°C → 아우터 필수, outer에 반드시 지정`
+            : `실외 체감 ${minTemp}°C → 아우터 불필요, outer는 null`;
+      const topRule = avgIndoorTemp >= 22
+        ? `실내 평균 ${avgIndoorTemp}°C → 상의는 얇게 (반팔/얇은 셔츠/얇은 니트 우선)`
+        : avgIndoorTemp >= 18
+          ? `실내 평균 ${avgIndoorTemp}°C → 상의는 보통 두께 (긴팔/셔츠/가디건)`
+          : `실내 평균 ${avgIndoorTemp}°C → 상의는 두껍게 (두꺼운 니트/맨투맨)`;
       const r = await fetch('/api/claude', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:1000,
           system:'패션 스타일리스트. 옷장과 날씨로 최적 코디를 JSON으로만 추천. 다른 텍스트 없음.',
-          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n실외 최저체감: ${minTemp}°C\n${hasRain?'우천 가능':''}\n일정: ${occasion}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 선호도 높은 옷 우선. (착용불가)(추천제외) 표시된 옷은 절대 추천 금지.\n온도별 아우터 규칙: 실외 체감 15°C 이하면 아우터 필수. 10°C 이하면 두꺼운 아우터(코트/패딩/점퍼) 우선. 15°C 이상이면 아우터 선택.\n레이어링: ${settings.layering==='inner'?'셔츠/자켓 안에 이너 티셔츠를 받쳐 입는 것을 선호':settings.layering==='no_inner'?'셔츠/자켓 안에 이너 없이 단독 착용 선호':'상황에 따라 자유롭게 레이어링 결정'}.\n\n{"outfits":[{"outer":"이름또는null","top":"이름","inner":"이너티셔츠이름또는null","bottom":"이름또는null","reason":"이유"}]}` }]
+          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n${hasRain?'우천 가능 ☂️':''}\n일정: ${occasion}\n\n[아우터 결정 - 실외 기준] ${outerRule}\n[상의 두께 결정 - 실내 기준] ${topRule}\n레이어링: ${settings.layering==='inner'?'셔츠/자켓 안에 이너 티셔츠를 받쳐 입는 것을 선호':settings.layering==='no_inner'?'셔츠/자켓 안에 이너 없이 단독 착용 선호':'상황에 따라 자유롭게 레이어링 결정'}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 선호도 높은 옷 우선. (착용불가)(추천제외) 표시된 옷은 절대 추천 금지.\n\n{"outfits":[{"outer":"이름또는null","top":"이름","inner":"이너티셔츠이름또는null","bottom":"이름또는null","reason":"이유"}]}` }]
         })
       });
       const data = await r.json();
