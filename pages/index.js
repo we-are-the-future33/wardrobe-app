@@ -886,12 +886,10 @@ export default function Home() {
                 <div key={c.id}
                   onClick={()=> selectMode ? toggleSelect({stopPropagation:()=>{}}, c.id) : openEditModal(c)}
                   style={{ background:S.surface, border:`1.5px solid ${selectMode && selectedIds.has(c.id) ? S.accent : S.border}`, borderRadius:S.radiusSm, padding:'10px 8px', textAlign:'left', position:'relative', cursor:'pointer', display:'flex', flexDirection:'column', height:'100%', transition:'border-color 0.15s' }}>
-                  {selectMode ? (
+                  {selectMode && (
                     <div onClick={e=>toggleSelect(e, c.id)} style={{ position:'absolute', top:6, right:6, width:20, height:20, borderRadius:6, border:`2px solid ${selectedIds.has(c.id)?S.accent:S.border}`, background:selectedIds.has(c.id)?S.accent:'#fff', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1, cursor:'pointer' }}>
                       {selectedIds.has(c.id) && <span style={{ color:'#fff', fontSize:12, fontWeight:700 }}>✓</span>}
                     </div>
-                  ) : (
-                    <button onClick={e=>{e.stopPropagation();deleteCloth(c.id);}} style={{ position:'absolute', top:4, right:4, width:18, height:18, borderRadius:'50%', background:S.danger, color:'white', border:'none', fontSize:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1 }}>✕</button>
                   )}
                   <div style={{ width:'100%', height:140, borderRadius:8, background:S.bg, overflow:'hidden', flexShrink:0, marginBottom:6, display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}
                     onClick={e=>{ if(selectMode) return; e.stopPropagation(); document.getElementById('img-replace-'+c.id).click(); }}>
@@ -977,7 +975,7 @@ export default function Home() {
       {/* ── 옷 추가 모달 ── */}
       {mounted && modalOpen && createPortal(
         <div onClick={e=>e.target===e.currentTarget&&setModalOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
-          <div style={{ background:'#fff', borderRadius:'20px 20px 0 0', padding:20, width:'100%', maxWidth:480, maxHeight:'85vh', overflowY:'auto' }}>
+          <div style={{ background:'#fff', borderRadius:'20px 20px 0 0', padding:20, width:'100%', maxWidth:480, height:'85vh', overflowY:'auto' }}>
             <div style={{ fontSize:16, fontWeight:700, marginBottom:16 }}>
               {editingId ? '옷 수정' : pendingItems.length>0 ? `옷 추가 (${(resultTags?.setCount||pendingItems.length+1)-pendingItems.length}/${resultTags?.setCount||pendingItems.length+1})` : '옷 추가'}
             </div>
