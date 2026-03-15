@@ -1,9 +1,7 @@
-1  :root {
-2    --bg: #F7F6F2;
-...
-11 }
-12
-13 * { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+--bg: #F7F6F2;
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
 14 body { font-family: ... }
 
 .nav {
