@@ -304,7 +304,7 @@ export default function Home() {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({
             model:'claude-sonnet-4-20250514', max_tokens:1500,
-            system:'쇼핑몰 주문 내역 이미지 분석. JSON만 반환. 카테고리: 아우터/상의/하의/원피스/신발/액세서리. 온도: 반팔23~35, 긴팔17~24, 맨투맨12~20, 니트/가디건10~20, 자켓12~20, 코트-5~10, 패딩-15~5, 반바지23~35, 슬랙스10~28, 청바지5~22. {"items":[{"name":"상품명","brand":"브랜드","color":"색상","price":"가격","category":"카테고리","temp_min":숫자,"temp_max":숫자,"purchase_date":"YYYY-MM-DD"}]}',
+            system:'쇼핑몰 주문 내역 이미지 분석. JSON만 반환. 카테고리: 아우터/상의/하의/원피스/신발/액세서리. 온도: 반팔23~35, 긴팔17~24, 맨투맨12~20, 니트/가디건10~20, 자켓12~20, 코트-5~10, 패딩-15~5, 반바지23~35, 슬랙스10~28, 청바지5~22. 색상과 사이즈는 주문 옵션에서 정확히 읽을 것. {"items":[{"name":"상품명","brand":"브랜드","color":"색상(예:블랙,화이트오트밀)","size":"사이즈(예:M,L,XL,95,100,Free)","price":"가격","category":"카테고리","temp_min":숫자,"temp_max":숫자,"purchase_date":"YYYY-MM-DD"}]}',
             messages:[{ role:'user', content:[
               { type:'image', source:{ type:'base64', media_type:mt, data:b64 } },
               { type:'text', text:'모든 상품 정보를 추출해주세요. 색상은 실제 구매 색상으로.' }
@@ -321,7 +321,8 @@ export default function Home() {
         .map(item => ({
           id: Math.random().toString(36).slice(2),
           ...item, checked:true,
-          temp_min:String(item.temp_min||''), temp_max:String(item.temp_max||''), image:null,
+          temp_min:String(item.temp_min||''), temp_max:String(item.temp_max||''),
+          size:item.size||'', image:null,
         }));
       const failed = results.filter(r => r.status === 'rejected').length;
       setOrderItems(allItems);
@@ -376,7 +377,7 @@ export default function Home() {
     if (toSave.length===0) return showToast('저장할 아이템을 선택해주세요');
     const newClothes = toSave.map(i => ({
       id: Date.now().toString()+Math.random().toString(36).slice(2),
-      name:i.name, brand:i.brand||'', price:i.price||'', color:i.color||'',
+      name:i.name, brand:i.brand||'', price:i.price||'', color:i.color||'', size:i.size||'',
       category:i.category||'상의', temp_min:parseInt(i.temp_min)||10, temp_max:parseInt(i.temp_max)||20,
       image:i.image||null, preference:3,
       source_url: orderUrlMap[i.id]||'',
@@ -853,7 +854,10 @@ export default function Home() {
                       reader.readAsDataURL(e.target.files[0]);
                     }}/>
                   </div>
-                  {c.color && <div style={{ marginBottom:4 }}><span style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background:S.bg, border:'1px solid '+S.border, color:S.text, fontWeight:500 }}>{c.color}</span></div>}
+                  {(c.color || c.size) && <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:4 }}>
+                    {c.color && <span style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background:S.bg, border:'1px solid '+S.border, color:S.text, fontWeight:500 }}>{c.color}</span>}
+                    {c.size && <span style={{ fontSize:10, padding:'2px 8px', borderRadius:99, background:'#E6F1FB', border:'1px solid #85B7EB', color:'#0C447C', fontWeight:600 }}>{c.size}</span>}
+                  </div>}
                   <div style={{ fontSize:11, fontWeight:600, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', lineHeight:1.4, marginBottom:4 }}>{c.name}</div>
                   <div style={{ fontSize:10, color:S.sub, marginTop:'auto', display:'flex', flexDirection:'column', gap:1 }}>
                     {c.brand && <div style={{ color:S.sub, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.brand}</div>}
@@ -1031,6 +1035,7 @@ export default function Home() {
                             <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
                               <input value={item.brand} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,brand:e.target.value}:b))} style={{ width:90, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="브랜드"/>
                               <input value={item.color} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,color:e.target.value}:b))} style={{ width:70, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="색상"/>
+                              <input value={item.size||''} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,size:e.target.value}:b))} style={{ width:50, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="사이즈"/>
                               <input value={item.price} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,price:e.target.value}:b))} style={{ width:80, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="가격"/>
                               <select value={item.category} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,category:e.target.value}:b))} style={{ border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 6px', fontSize:11, fontFamily:'inherit', outline:'none' }}>
                                 {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
