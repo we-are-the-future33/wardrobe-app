@@ -280,19 +280,7 @@ export default function Home() {
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:2000,
           system:'패션 스타일리스트. 주간 코디와 짐싸기 리스트를 JSON으로만 반환. 다른 텍스트 없음.',
-          messages:[{ role:'user', content:'다음 주간 일정에 맞는 코디를 추천해주세요.\n\n일정:\n'+dayText+'\n\n내 옷장:\n'+clothText+'\n\n'+(isTravel?'여행 포함, 짐싸기 리스트도 포함.\n\n':'')+'JSON만 응답: {"outfits":[{"date":"YYYY-MM-DD","outer":"이름또는null","top":"이름","bottom":"이름또는null","reason":"한줄이유"}]'+(isTravel?',"packing_list":["항목1"]':'')+'}' }]
-
-
-
-
-
-
-
-
-
-
-
-
+          messages:[{ role:'user', content:'일정:\n'+dayText+'\n\n내 옷장:\n'+clothText+'\n\nJSON만 응답:{"outfits":[{"date":"YYYY-MM-DD","outer":"null가능","top":"이름","bottom":"null가능","reason":"이유"}]}' }]
         })
       });
       const data = await r.json();
@@ -520,8 +508,8 @@ export default function Home() {
               {filtered.map(c=>(
                 <div key={c.id} onClick={()=>openEditModal(c)} style={{ background:S.surface, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'10px 8px', textAlign:'center', position:'relative', cursor:'pointer', display:'flex', flexDirection:'column' }}>
                   <button onClick={e=>{e.stopPropagation();deleteCloth(c.id);}} style={{ position:'absolute', top:4, right:4, width:18, height:18, borderRadius:'50%', background:'#E24B4A', color:'white', border:'none', fontSize:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1 }}>✕</button>
-                  <div style={{ width:'100%', paddingTop:'100%', borderRadius:8, background:S.bg, position:'relative', marginBottom:8, overflow:'hidden', flexShrink:0 }}>
-                    {c.image?<img src={c.image} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }}/>:<span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:28 }}>{CAT_EMOJI[c.category]||'👔'}</span>}
+                  <div style={{ width:'100%', height:140, borderRadius:8, background:S.bg, overflow:'hidden', flexShrink:0, marginBottom:8, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    {c.image?<img src={c.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>:<span style={{ fontSize:28 }}>{CAT_EMOJI[c.category]||'👔'}</span>}
                   </div>
                   <div style={{ fontSize:11, fontWeight:500, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', lineHeight:1.3, minHeight:28, marginBottom:3 }}>{c.name}</div>
                   <div style={{ fontSize:10, color:S.sub, marginTop:'auto' }}>
