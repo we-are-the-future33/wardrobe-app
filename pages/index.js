@@ -62,7 +62,7 @@ export default function Home() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchUrls, setBatchUrls] = useState('');
   const [mounted, setMounted] = useState(false);
-  const [recommendMode, setRecommendMode] = useState('today'); // today | week
+  const [recommendMode, setRecommendMode] = useState('today');
   const [weekPlan, setWeekPlan] = useState(() => {
     const days = [];
     for (let i = 0; i < 28; i++) {
@@ -277,9 +277,7 @@ export default function Home() {
       const p = await r.json();
       if (p.error) throw new Error(p.error);
 
-      // 세트 상품 처리 (items 배열)
       if (p.items && p.items.length > 1) {
-        // 여러 아이템 - 첫 번째 폼에 채우고 나머지는 pendingItems로
         const first = p.items[0];
         const firstColors = first.colors || [];
         setClothForm({ name:first.name||'', category:first.category||'상의', temp_min:first.temp_min||'', temp_max:first.temp_max||'', style:(first.style||[]).join(', '), color:firstColors.length===1?firstColors[0]:'', brand:p.brand||'', price:p.price||'' });
@@ -288,7 +286,6 @@ export default function Home() {
         setResultTags({ ...p, isSet:true, setCount:p.items.length, currentItem:0 });
         setPendingItems(p.items.slice(1).map(item => ({ ...item, brand:p.brand||'', price:p.price||'', image:p.image_url||null })));
       } else {
-        // 단품
         const item = p.items?.[0] || p;
         const colors = item.colors || [];
         setClothForm({ name:item.name||'', category:item.category||'상의', temp_min:item.temp_min||'', temp_max:item.temp_max||'', style:(item.style||[]).join(', '), color:colors.length===1?colors[0]:'', brand:p.brand||'', price:p.price||'' });
@@ -336,7 +333,6 @@ export default function Home() {
       const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image, added_at:new Date().toISOString(), price:clothForm.price||'' };
       const updated = [...clothes, newCloth];
       setClothes(updated); LS.set('clothes', updated);
-      // 세트 상품 남은 아이템 있으면 다음 아이템 폼으로
       if (pendingItems.length > 0) {
         const next = pendingItems[0];
         setClothForm({ name:next.name||'', category:next.category||'상의', temp_min:String(next.temp_min||''), temp_max:String(next.temp_max||''), style:(next.style||[]).join(', '), color:(next.colors||[]).join(', '), brand:next.brand||'', price:next.price||'' });
@@ -403,7 +399,6 @@ export default function Home() {
         const dateStr = new Date(d.date).toLocaleDateString('ko-KR', { month:'long', day:'numeric', weekday:'short' });
         return `- ${dateStr}: ${d.city} ${d.weather.temp}°C ${d.weather.condition}, ${d.env==='indoor'?d.place:'실외 활동'}, ${d.occasion}`;
       }).join('\n');
-      const isTravel = activeDays.some(d => d.city && d.city !== homeCity);
       const r = await fetch('/api/claude', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
@@ -493,7 +488,6 @@ export default function Home() {
               <div style={{ fontSize:12, fontWeight:500, color:S.sub, marginBottom:12, textTransform:'uppercase', letterSpacing:'0.04em' }}>주간 일정</div>
               <div style={{ display:'flex', gap:4, marginBottom:12 }}>
                 {[0,1,2,3].map(w => {
-                  const startD = new Date(); startD.setDate(startD.getDate() + w*7);
                   const label = w===0?'이번주':w===1?'다음주':w===2?'다다음주':'3주후';
                   return <button key={w} onClick={()=>setWeekOffset(w)} style={{ flex:1, padding:'6px 0', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${weekOffset===w?S.accent:S.border}`, background:weekOffset===w?S.accent:S.surface, color:weekOffset===w?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{label}</button>;
                 })}
@@ -616,7 +610,6 @@ export default function Home() {
                   })}
                 </div>
                 <div style={{ background:S.bg, borderRadius:S.radiusSm, padding:'10px 12px', fontSize:12, color:S.sub, lineHeight:1.6, marginBottom:8 }}>{o.reason}</div>
-                <div style={{ background:S.bg, borderRadius:S.radiusSm, padding:'8px 10px', fontSize:11, color:S.sub, lineHeight:1.6 }}>{o.reason}</div>
               </div>
             );
           })}
@@ -712,9 +705,12 @@ export default function Home() {
                 </div>
                 {batchMode ? (
                   <div>
-placeholder={'URL을 한 줄에 하나씩\nhttps://www.musinsa.com/products/123\nhttps://www.musinsa.com/products/456'}
-https://www.musinsa.com/products/123
-https://www.musinsa.com/products/456'} style={{ width:'100%', height:90, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'9px 12px', fontSize:12, fontFamily:'inherit', outline:'none', resize:'none', boxSizing:'border-box', marginBottom:8 }}/>
+                    <textarea
+                      value={batchUrls}
+                      onChange={e=>setBatchUrls(e.target.value)}
+                      placeholder={'URL을 한 줄에 하나씩\nhttps://www.musinsa.com/products/123\nhttps://www.musinsa.com/products/456'}
+                      style={{ width:'100%', height:90, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'9px 12px', fontSize:12, fontFamily:'inherit', outline:'none', resize:'none', boxSizing:'border-box', marginBottom:8 }}
+                    />
                     <button onClick={fetchBatch} disabled={batchLoading} style={btnPrimary({ width:'100%' })}>{batchLoading?'파싱 중...':'한꺼번에 가져오기'}</button>
                     {batchItems.length > 0 && (
                       <div style={{ marginTop:12 }}>
