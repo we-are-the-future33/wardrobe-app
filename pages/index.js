@@ -257,13 +257,22 @@ export default function Home() {
   };
 
   // ── 주문 내역 파싱 ────────────────────────────────
-  const parseOrderImage = async (file) => {
-    setOrderLoading(true); setOrderItems([]);
+  // 파일 → base64 변환 헬퍼
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = async (e) => {
-      const b64 = e.target.result.split(',')[1];
-      const mt = file.type;
-      try {
+    reader.onload = e => resolve({ b64: e.target.result.split(',')[1], mt: file.type });
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const parseOrderImage = async (files) => {
+    const fileArr = Array.from(files);
+    if (fileArr.length === 0) return;
+    setOrderLoading(true); setOrderItems([]);
+    try {
+      // 여러 장 병렬 분석
+      const results = await Promise.allSettled(fileArr.map(async (file) => {
+        const { b64, mt } = await fileToBase64(file);
         const r = await fetch('/api/claude', {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({
@@ -277,18 +286,22 @@ export default function Home() {
         });
         const data = await r.json();
         const text = data.content?.[0]?.text?.replace(/```json|```/g,'').trim()||'{}';
-        const parsed = JSON.parse(text);
-        const items = (parsed.items||[]).map(item => ({
+        return JSON.parse(text).items || [];
+      }));
+      const allItems = results
+        .filter(r => r.status === 'fulfilled')
+        .flatMap(r => r.value)
+        .map(item => ({
           id: Math.random().toString(36).slice(2),
           ...item, checked:true,
           temp_min:String(item.temp_min||''), temp_max:String(item.temp_max||''), image:null,
         }));
-        setOrderItems(items);
-        if (items.length===0) showToast('상품을 찾지 못했어요');
-      } catch(e) { showToast('분석 오류'); console.error(e); }
-      finally { setOrderLoading(false); }
-    };
-    reader.readAsDataURL(file);
+      const failed = results.filter(r => r.status === 'rejected').length;
+      setOrderItems(allItems);
+      if (allItems.length === 0) showToast('상품을 찾지 못했어요');
+      else if (failed > 0) showToast(`${allItems.length}개 인식됨 (${failed}장 실패)`);
+    } catch(e) { showToast('분석 오류'); console.error(e); }
+    finally { setOrderLoading(false); }
   };
 
   const saveOrderItems = () => {
@@ -871,8 +884,9 @@ export default function Home() {
                   <div style={{ fontSize:24, marginBottom:6 }}>🧾</div>
                   <div style={{ fontSize:13, color:S.sub }}>무신사 주문 내역 스크린샷을 업로드하세요</div>
                   <div style={{ fontSize:11, color:S.hint, marginTop:4 }}>색상·가격·구매일자 자동 인식</div>
-                  <input id="orderInput" type="file" accept="image/*" style={{ display:'none' }} onChange={e=>e.target.files[0]&&parseOrderImage(e.target.files[0])}/>
-                  {orderLoading && <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:10 }}><div style={{ width:20, height:20, border:`2px solid ${S.border}`, borderTopColor:S.accent, borderRadius:'50%', animation:'spin 0.7s linear infinite' }}></div><span style={{ fontSize:13 }}>주문 내역 분석 중...</span></div>}
+                  <div style={{ fontSize:11, color:'#85B7EB', marginTop:6 }}>여러 장 동시 선택 가능</div>
+                  <input id="orderInput" type="file" accept="image/*" multiple style={{ display:'none' }} onChange={e=>e.target.files.length>0&&parseOrderImage(e.target.files)}/>
+                  {orderLoading && <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:10 }}><div style={{ width:20, height:20, border:`2px solid ${S.border}`, borderTopColor:S.accent, borderRadius:'50%', animation:'spin 0.7s linear infinite' }}></div><span style={{ fontSize:13 }}>스크린샷 분석 중...</span></div>}
                 </div>
                 {orderItems.length>0 && (
                   <div>
@@ -908,8 +922,8 @@ export default function Home() {
               </div>
             )}
 
-            {/* 분석 태그 */}
-            {resultTags && (
+            {/* 분석 태그 - URL/사진 탭에서만 표시 */}
+            {resultTags && addTab!=='order' && (
               <div style={{ padding:'10px 12px', background:S.bg, borderRadius:S.radiusSm, margin:'10px 0' }}>
                 <div style={{ fontSize:11, color:S.sub, marginBottom:6 }}>{resultTags.brand&&<strong>{resultTags.brand}</strong>}{resultTags.price&&` · ${resultTags.price}`}</div>
                 {(resultTags.colors||[]).map(t=><span key={t} style={{ display:'inline-block', padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:500, margin:2, background:'#E1F5EE', color:'#085041' }}>{t}</span>)}
@@ -920,8 +934,8 @@ export default function Home() {
               </div>
             )}
 
-            {/* 폼 */}
-            <div style={{ marginTop:12 }}>
+            {/* 폼 - URL/사진 탭에서만 표시 */}
+            {addTab!=='order' && <div style={{ marginTop:12 }}>
               {[{l:'옷 이름',k:'name',p:'예: 그레이 가디건'},{l:'스타일',k:'style',p:'예: 미니멀, 캐주얼'},{l:'색상',k:'color',p:'예: 라이트 그레이'}].map(({l,k,p})=>(
                 <div key={k} style={formRow}>
                   <div style={labelSt}>{l}</div>
@@ -988,11 +1002,18 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-            </div>
+            </div>}
+            {addTab!=='order' && (
             <div style={{ display:'flex', gap:8, marginTop:16 }}>
               <button onClick={()=>setModalOpen(false)} style={btn({ flex:1 })}>취소</button>
               <button onClick={saveCloth} style={btnPrimary({ flex:1 })}>{editingId?'수정 완료':'저장'}</button>
             </div>
+            )}
+            {addTab==='order' && (
+            <div style={{ marginTop:8 }}>
+              <button onClick={()=>setModalOpen(false)} style={btn({ width:'100%' })}>닫기</button>
+            </div>
+            )}
           </div>
         </div>,
         document.body
