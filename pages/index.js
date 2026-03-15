@@ -176,6 +176,11 @@ export default function Home() {
     setSettings(LS.get('settings', { home_city:'', cold_sensitivity:0 }));
     setWeekPlan(buildWeekPlan());
     setClothForm(f => ({ ...f, purchase_date: new Date().toISOString().split('T')[0] }));
+    // 주간 코디 복원
+    const savedWeekOutfits = LS.get('weekOutfits', []);
+    if (savedWeekOutfits.length > 0) setWeekOutfits(savedWeekOutfits);
+    const savedPackingList = LS.get('packingList', []);
+    if (savedPackingList.length > 0) setPackingList(savedPackingList);
   }, []);
 
   // ── 헬퍼 ─────────────────────────────────────────
@@ -628,7 +633,10 @@ export default function Home() {
         ...o, weather: weatherMap[o.date] || null
       }));
       setWeekOutfits(outfitsWithWeather);
-      if (parsed.packing_list) setPackingList(parsed.packing_list);
+      LS.set('weekOutfits', outfitsWithWeather);
+      const pl = parsed.packing_list || [];
+      setPackingList(pl);
+      LS.set('packingList', pl);
     } catch(e) { showToast(e.message||'오류 발생'); console.error(e); }
     finally { setWeekLoading(false); }
   };
@@ -864,6 +872,12 @@ export default function Home() {
           )}
 
           {/* 주간 결과 */}
+          {weekOutfits.length > 0 && (
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+              <span style={{ fontSize:12, color:S.sub }}>주간 코디 — 탭 나가도 유지돼요</span>
+              <button onClick={()=>{ setWeekOutfits([]); setPackingList([]); LS.set('weekOutfits',[]); LS.set('packingList',[]); }} style={{ fontSize:11, color:S.hint, background:'none', border:'none', cursor:'pointer', fontFamily:'inherit' }}>초기화</button>
+            </div>
+          )}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))', gap:12 }}>
             {weekOutfits.map((o,i)=><OutfitCard key={o.date||i} outfit={o} index={i} showDate={true}/>)}
           </div>
