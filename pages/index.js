@@ -56,6 +56,8 @@ export default function Home() {
   const [pendingItems, setPendingItems] = useState([]);
   const [colorOptions, setColorOptions] = useState([]);
   const [batchMode, setBatchMode] = useState(false);
+  const [orderLoading, setOrderLoading] = useState(false);
+  const [orderItems, setOrderItems] = useState([]);
   const [batchItems, setBatchItems] = useState([]);
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchUrls, setBatchUrls] = useState('');
@@ -163,6 +165,57 @@ export default function Home() {
     } finally {
       setRemovingBg(false);
     }
+  };
+
+  const parseOrderImage = async (file) => {
+    setOrderLoading(true); setOrderItems([]);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const b64 = e.target.result.split(',')[1];
+      const mt = file.type;
+      try {
+        const r = await fetch('/api/claude', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            model:'claude-sonnet-4-20250514', max_tokens:1500,
+            system:'쇼핑몰 주문 내역 이미지 분석 전문가. JSON만 반환. 주문 내역에서 각 상품을 추출해 배열로 반환. 구매일자는 이미지에서 읽은 날짜를 YYYY-MM-DD 형식으로. 카테고리 판단: 아우터/상의/하의/원피스/신발/액세서리. 온도 기준: 반팔23~35, 긴팔17~24, 맨투맨12~20, 니트/가디건10~20, 자켓12~20, 코트-5~10, 패딩-15~5, 반바지23~35, 슬랙스10~28, 청바지5~22. {"items":[{"name":"상품명","brand":"브랜드","color":"구매한색상","price":"가격","category":"카테고리","temp_min":숫자,"temp_max":숫자,"purchase_date":"YYYY-MM-DD"}]}',
+            messages:[{ role:'user', content:[
+              { type:'image', source:{ type:'base64', media_type:mt, data:b64 } },
+              { type:'text', text:'이 주문 내역 이미지에서 모든 상품 정보를 추출해주세요. 색상은 반드시 실제 구매한 색상(예: 엠그레이, 딥카키 등)을 써주세요.' }
+            ]}]
+          })
+        });
+        const data = await r.json();
+        const text = data.content?.[0]?.text?.replace(/```json|```/g,'').trim()||'{}';
+        const parsed = JSON.parse(text);
+        const items = (parsed.items||[]).map(item => ({
+          id: Math.random().toString(36).slice(2),
+          ...item, checked: true,
+          temp_min: String(item.temp_min||''), temp_max: String(item.temp_max||''),
+          image: null,
+        }));
+        setOrderItems(items);
+        if (items.length === 0) showToast('상품을 찾지 못했어요');
+      } catch { showToast('분석 오류'); }
+      finally { setOrderLoading(false); }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveOrderItems = () => {
+    const toSave = orderItems.filter(i => i.checked && i.name);
+    if (toSave.length === 0) return showToast('저장할 아이템을 선택해주세요');
+    const newClothes = toSave.map(i => ({
+      id: Date.now().toString() + Math.random().toString(36).slice(2),
+      name:i.name, brand:i.brand||'', price:i.price||'', color:i.color||'',
+      category:i.category||'상의', temp_min:parseInt(i.temp_min)||10, temp_max:parseInt(i.temp_max)||20,
+      image:null, preference:3, purchase_date:i.purchase_date||new Date().toISOString().split('T')[0],
+      added_at:new Date().toISOString(),
+    }));
+    const updated = [...clothes, ...newClothes];
+    setClothes(updated); LS.set('clothes', updated);
+    setModalOpen(false); resetModal();
+    showToast(newClothes.length+'개 저장됨');
   };
 
   const fetchBatch = async () => {
@@ -301,7 +354,7 @@ export default function Home() {
   const resetModal = () => {
     setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', brand:'', price:'', season:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
-    setResultTags(null); setAddTab('url'); setEditingId(null); setPendingItems([]); setColorOptions([]); setBatchMode(false); setBatchItems([]); setBatchUrls('');
+    setResultTags(null); setAddTab('url'); setEditingId(null); setPendingItems([]); setColorOptions([]); setBatchMode(false); setBatchItems([]); setBatchUrls(''); setOrderItems([]);
   };
 
   const openEditModal = (c) => {
@@ -645,9 +698,9 @@ export default function Home() {
           <div style={{ background:'#fff', borderRadius:'20px 20px 0 0', padding:20, width:'100%', maxWidth:480, maxHeight:'85vh', overflowY:'auto' }}>
             <div style={{ fontSize:16, fontWeight:700, marginBottom:16 }}>{editingId ? '옷 수정' : pendingItems.length > 0 ? `옷 추가 (${(resultTags?.setCount||pendingItems.length+1) - pendingItems.length}/${resultTags?.setCount||pendingItems.length+1})` : '옷 추가'}</div>
             <div style={{ display:'flex', gap:4, marginBottom:14 }}>
-              {['url','photo'].map(t=>(
-                <button key={t} onClick={()=>setAddTab(t)} style={{ flex:1, padding:9, borderRadius:S.radiusSm, fontSize:13, fontWeight:500, border:`1px solid ${S.border}`, background:addTab===t?S.accent:S.bg, color:addTab===t?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>
-                  {t==='url'?'🔗 쇼핑몰 URL':'📷 사진 업로드'}
+              {[['url','🔗 쇼핑몰 URL'],['photo','📷 사진 업로드'],['order','🧾 주문 내역']].map(([t,label])=>(
+                <button key={t} onClick={()=>setAddTab(t)} style={{ flex:1, padding:'8px 4px', borderRadius:S.radiusSm, fontSize:12, fontWeight:500, border:`1px solid ${S.border}`, background:addTab===t?S.accent:S.bg, color:addTab===t?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>
+                  {label}
                 </button>
               ))}
             </div>
@@ -741,6 +794,49 @@ https://www.musinsa.com/products/456'} style={{ width:'100%', height:90, border:
                 <div style={{ fontSize:13, color:S.sub }}>사진 업로드하면 AI가 자동 분류해요</div>
                 <input id="photoInput" type="file" accept="image/*" style={{ display:'none' }} onChange={e=>e.target.files[0]&&handlePhoto(e.target.files[0])}/>
                 {analyzeLoading && <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:10 }}><div style={{ width:20, height:20, border:`2px solid ${S.border}`, borderTopColor:S.accent, borderRadius:'50%', animation:'spin 0.7s linear infinite' }}></div><span style={{ fontSize:13 }}>분석 중...</span></div>}
+              </div>
+            )}
+
+            {addTab==='order' && (
+              <div>
+                <div onClick={()=>document.getElementById('orderInput').click()} style={{ border:`1.5px dashed ${S.border}`, borderRadius:S.radiusSm, padding:20, textAlign:'center', cursor:'pointer', background:S.bg, marginBottom:10 }}>
+                  <div style={{ fontSize:24, marginBottom:6 }}>🧾</div>
+                  <div style={{ fontSize:13, color:S.sub }}>무신사 주문 내역 스크린샷을 업로드하세요</div>
+                  <div style={{ fontSize:11, color:S.hint, marginTop:4 }}>색상·가격·구매일자 자동 인식</div>
+                  <input id="orderInput" type="file" accept="image/*" style={{ display:'none' }} onChange={e=>e.target.files[0]&&parseOrderImage(e.target.files[0])}/>
+                  {orderLoading && <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:10 }}><div style={{ width:20, height:20, border:`2px solid ${S.border}`, borderTopColor:S.accent, borderRadius:'50%', animation:'spin 0.7s linear infinite' }}></div><span style={{ fontSize:13 }}>주문 내역 분석 중...</span></div>}
+                </div>
+                {orderItems.length > 0 && (
+                  <div>
+                    <div style={{ fontSize:12, color:S.sub, marginBottom:8 }}>{orderItems.length}개 상품 인식됨</div>
+                    {orderItems.map((item,idx)=>(
+                      <div key={item.id} style={{ border:`1px solid ${item.checked?S.accent:S.border}`, borderRadius:10, padding:'10px 12px', marginBottom:8 }}>
+                        <div style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <input value={item.name} onChange={e=>setOrderItems(orderItems.map((b,i)=>i===idx?{...b,name:e.target.value}:b))} style={{ width:'100%', border:`1px solid ${S.border}`, borderRadius:6, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', marginBottom:4, boxSizing:'border-box' }} placeholder="상품명"/>
+                            <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+                              <input value={item.brand} onChange={e=>setOrderItems(orderItems.map((b,i)=>i===idx?{...b,brand:e.target.value}:b))} style={{ width:90, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="브랜드"/>
+                              <input value={item.color} onChange={e=>setOrderItems(orderItems.map((b,i)=>i===idx?{...b,color:e.target.value}:b))} style={{ width:70, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="색상"/>
+                              <input value={item.price} onChange={e=>setOrderItems(orderItems.map((b,i)=>i===idx?{...b,price:e.target.value}:b))} style={{ width:80, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="가격"/>
+                              <select value={item.category} onChange={e=>setOrderItems(orderItems.map((b,i)=>i===idx?{...b,category:e.target.value}:b))} style={{ border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 6px', fontSize:11, fontFamily:'inherit', outline:'none' }}>
+                                {['아우터','상의','하의','원피스','신발','액세서리'].map(c=><option key={c} value={c}>{c}</option>)}
+                              </select>
+                            </div>
+                            <div style={{ display:'flex', gap:4, marginTop:4, alignItems:'center' }}>
+                              <input value={item.purchase_date} onChange={e=>setOrderItems(orderItems.map((b,i)=>i===idx?{...b,purchase_date:e.target.value}:b))} style={{ width:110, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="구매일자"/>
+                              <input value={item.temp_min} onChange={e=>setOrderItems(orderItems.map((b,i)=>i===idx?{...b,temp_min:e.target.value}:b))} style={{ width:40, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="최저"/>
+                              <span style={{ fontSize:11, color:S.sub }}>~</span>
+                              <input value={item.temp_max} onChange={e=>setOrderItems(orderItems.map((b,i)=>i===idx?{...b,temp_max:e.target.value}:b))} style={{ width:40, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="최고"/>
+                              <span style={{ fontSize:11, color:S.sub }}>°C</span>
+                            </div>
+                          </div>
+                          <button onClick={()=>setOrderItems(orderItems.map((b,i)=>i===idx?{...b,checked:!b.checked}:b))} style={{ width:24, height:24, borderRadius:6, border:`1.5px solid ${item.checked?S.accent:S.border}`, background:item.checked?S.accent:'#fff', color:'#fff', fontSize:14, cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>{item.checked?'✓':''}</button>
+                        </div>
+                      </div>
+                    ))}
+                    <button onClick={saveOrderItems} style={btnPrimary({ width:'100%', marginTop:4 })}>선택 항목 저장 ({orderItems.filter(i=>i.checked).length}개)</button>
+                  </div>
+                )}
               </div>
             )}
             {resultTags && (
