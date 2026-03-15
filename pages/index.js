@@ -350,7 +350,7 @@ export default function Home() {
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:1000,
           system:'패션 스타일리스트. 옷장과 날씨로 최적 코디를 JSON으로만 추천. 다른 텍스트 없음.',
-          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n${hasRain?'우천 가능 ☂️':''}\n일정: ${occasion}\n\n[아우터 결정 - 실외 기준] ${outerRule}\n[상의 두께 결정 - 실내 기준] ${topRule}\n레이어링: ${settings.layering==='inner'?'셔츠/자켓 안에 이너 티셔츠를 받쳐 입는 것을 선호':settings.layering==='no_inner'?'셔츠/자켓 안에 이너 없이 단독 착용 선호':'상황에 따라 자유롭게 레이어링 결정'}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 선호도 높은 옷 우선. (착용불가)(추천제외) 표시된 옷은 절대 추천 금지. 착용가능 상황이 표시된 옷은 해당 상황(occasion)과 일치할 때만 추천할 것.\n\n{"outfits":[{"outer2":"아우터위에추가레이어또는null","outer":"아우터또는null","top":"이름(필수)","inner":"이너티셔츠이름또는null","bottom":"이름(원피스외필수)","reason":"이유"}]}` }]
+          messages:[{ role:'user', content:`오늘 일정:\n${weatherText}\n${hasRain?'우천 가능 ☂️':''}\n일정: ${occasion}\n\n[아우터 결정 - 실외 기준] ${outerRule}\n[상의 두께 결정 - 실내 기준] ${topRule}\n레이어링: ${settings.layering==='inner'?'셔츠/자켓 안에 이너 티셔츠를 받쳐 입는 것을 선호':settings.layering==='no_inner'?'셔츠/자켓 안에 이너 없이 단독 착용 선호':'상황에 따라 자유롭게 레이어링 결정'}\n\n옷장:\n${clothText}\n\n코디 3가지 추천. 선호도 높은 옷 우선. (착용불가)(추천제외) 표시된 옷은 절대 추천 금지. 착용가능 상황이 표시된 옷은 해당 상황(occasion)과 일치할 때만 추천할 것.\n\n{"outfits":[{"outer2":"아우터위에추가레이어또는null","outer":"아우터또는null","top":"이름(필수)","inner":"이너티셔츠이름또는null","bottom":"이름(원피스외필수)","reason":"선택한 옷 이름을 직접 언급하며 조합 이유 설명(2문장 이내)"}]}` }]
         })
       });
       const data = await r.json();
@@ -701,8 +701,8 @@ export default function Home() {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:2000,
-          system:'패션 스타일리스트. 주간 코디를 JSON으로만 반환. 다른 텍스트 없음. 반드시 각 일정의 [날짜:YYYY-MM-DD]를 date 필드에 그대로 복사할 것. 년도를 임의로 변경하지 말 것. reason에는 날짜/요일 언급 금지, 코디 이유만 간결하게. 온도별 아우터 규칙: 체감 15°C 이하 → 아우터 필수, 10°C 이하 → 두꺼운 아우터 우선, 15°C 초과 → 아우터 선택.',
-          messages:[{ role:'user', content:`일정:\n${dayText}\n\n내 옷장:\n${clothText}\n\n각 날짜에 맞는 코디 추천. date 필드는 반드시 위 [날짜:YYYY-MM-DD] 값 그대로 사용. (착용불가)(추천제외) 표시된 옷 절대 사용 금지. top과 bottom 모두 필수(원피스 제외시). outer만 null 가능.\nJSON만 응답:{"outfits":[{"date":"YYYY-MM-DD","outer2":"추가레이어또는null","outer":"아우터또는null","top":"이름(필수)","bottom":"이름(원피스외필수)","reason":"코디이유만"}],"packing_list":["아이템"]}` }]
+          system:'패션 스타일리스트. 주간 코디를 JSON으로만 반환. 다른 텍스트 없음. 반드시 각 일정의 [날짜:YYYY-MM-DD]를 date 필드에 그대로 복사할 것. 년도를 임의로 변경하지 말 것. reason에는 날짜/요일 언급 금지. 반드시 선택한 top/outer/bottom 이름을 직접 언급하며 조합 이유를 2문장 이내로 설명. 온도별 아우터 규칙: 체감 15°C 이하 → 아우터 필수, 10°C 이하 → 두꺼운 아우터 우선, 15°C 초과 → 아우터 선택.',
+          messages:[{ role:'user', content:`일정:\n${dayText}\n\n내 옷장:\n${clothText}\n\n각 날짜에 맞는 코디 추천. date 필드는 반드시 위 [날짜:YYYY-MM-DD] 값 그대로 사용. (착용불가)(추천제외) 표시된 옷 절대 사용 금지. top과 bottom 모두 필수(원피스 제외시). outer만 null 가능.\nJSON만 응답:{"outfits":[{"date":"YYYY-MM-DD","outer2":"추가레이어또는null","outer":"아우터또는null","top":"이름(필수)","bottom":"이름(원피스외필수)","reason":"top/outer/bottom 이름 언급하며 조합이유(2문장이내)"}],"packing_list":["아이템"]}` }]
         })
       });
       const data = await r.json();
@@ -796,7 +796,7 @@ export default function Home() {
       }).filter(Boolean).join('\n');
       const [ry,rm,rd] = date.split('-').map(Number); const dateStr = new Date(ry,rm-1,rd).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
       const weatherInfo = outfit.weather ? outfit.weather.temp+'°C '+outfit.weather.condition : '';
-      const prompt = dateStr+' '+weatherInfo+' 날 다른 코디 1가지 추천. (이미확정)(착용불가) 옷 절대 사용 금지.\n\n옷장:\n'+clothText+'\n\n{"outer2":"추가레이어또는null","outer":"아우터또는null","top":"이름(필수)","bottom":"이름(원피스외필수)","reason":"이유"}';
+      const prompt = dateStr+' '+weatherInfo+' 날 다른 코디 1가지 추천. (이미확정)(착용불가) 옷 절대 사용 금지.\n\n옷장:\n'+clothText+'\n\n{"outer2":"추가레이어또는null","outer":"아우터또는null","top":"이름(필수)","bottom":"이름(원피스외필수)","reason":"선택한 옷 이름 언급하며 조합이유(2문장이내)"}';
       const r = await fetch('/api/claude', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
