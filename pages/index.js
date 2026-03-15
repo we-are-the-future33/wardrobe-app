@@ -156,7 +156,7 @@ export default function Home() {
       const r = await fetch('/api/parse-url', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url:shopUrl }) });
       const p = await r.json();
       if (p.error) throw new Error(p.error);
-      setClothForm({ name:p.name||'', category:p.category||'상의', temp_min:p.temp_min||'', temp_max:p.temp_max||'', style:(p.style||[]).join(', '), color:(p.colors||[]).join(', '), brand:p.brand||'' });
+      setClothForm({ name:p.name||'', category:p.category||'상의', temp_min:p.temp_min||'', temp_max:p.temp_max||'', style:(p.style||[]).join(', '), color:(p.colors||[]).join(', '), brand:p.brand||'', price:p.price||'' });
       if (p.image_url) setFetchedImage(p.image_url);
       setResultTags(p);
     } catch(e) { showToast('상품 정보를 가져오지 못했어요'); }
@@ -177,7 +177,7 @@ export default function Home() {
         });
         const data = await r.json();
         const p = JSON.parse(data.content?.[0]?.text?.replace(/\`\`\`json|\`\`\`/g,'').trim()||'{}');
-        setClothForm({ name:p.name||'', category:p.category||'상의', temp_min:p.temp_min||'', temp_max:p.temp_max||'', style:(p.style||[]).join(', '), color:(p.colors||[]).join(', '), brand:p.brand||'' });
+        setClothForm({ name:p.name||'', category:p.category||'상의', temp_min:p.temp_min||'', temp_max:p.temp_max||'', style:(p.style||[]).join(', '), color:(p.colors||[]).join(', '), brand:p.brand||'', price:p.price||'' });
         setResultTags(p);
       } catch { showToast('분석 오류'); }
       finally { setAnalyzeLoading(false); }
@@ -195,7 +195,7 @@ export default function Home() {
       setModalOpen(false); resetModal();
       showToast(`"${clothForm.name}" 수정됨`);
     } else {
-      const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image, added_at:new Date().toISOString() };
+      const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image, added_at:new Date().toISOString(), price:clothForm.price||'' };
       const updated = [...clothes, newCloth];
       setClothes(updated); LS.set('clothes', updated);
       setModalOpen(false); resetModal();
@@ -204,14 +204,14 @@ export default function Home() {
   };
 
   const resetModal = () => {
-    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', brand:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
+    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', brand:'', price:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
     setResultTags(null); setAddTab('url'); setEditingId(null);
   };
 
   const openEditModal = (c) => {
     setEditingId(c.id);
-    setClothForm({ name:c.name, category:c.category, temp_min:String(c.temp_min), temp_max:String(c.temp_max), style:c.style||'', color:c.color||'', brand:c.brand||'', purchase_date:c.purchase_date||new Date().toISOString().split('T')[0], preference:c.preference||3 });
+    setClothForm({ name:c.name, category:c.category, temp_min:String(c.temp_min), temp_max:String(c.temp_max), style:c.style||'', color:c.color||'', brand:c.brand||'', price:c.price||'', purchase_date:c.purchase_date||new Date().toISOString().split('T')[0], preference:c.preference||3 });
     if (c.image) setFetchedImage(c.image);
     setImageBase64(null); setImageType(null);
     setResultTags(null); setAddTab('url'); setShopUrl('');
@@ -481,18 +481,21 @@ export default function Home() {
               <p style={{ fontSize:14 }}>등록된 옷이 없어요</p>
             </div>
           ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, alignItems:'start' }}>
               {filtered.map(c=>(
-                <div key={c.id} onClick={()=>openEditModal(c)} style={{ background:S.surface, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'10px 8px', textAlign:'center', position:'relative', cursor:'pointer' }}>
-                  <button onClick={e=>{e.stopPropagation();deleteCloth(c.id);}} style={{ position:'absolute', top:4, right:4, width:18, height:18, borderRadius:'50%', background:'#E24B4A', color:'white', border:'none', fontSize:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
-                  <div style={{ width:'100%', aspectRatio:1, borderRadius:8, background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:6, overflow:'hidden' }}>
-                    {c.image?<img src={c.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>:<span style={{ fontSize:28 }}>{CAT_EMOJI[c.category]||'👔'}</span>}
+                <div key={c.id} onClick={()=>openEditModal(c)} style={{ background:S.surface, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'10px 8px', textAlign:'center', position:'relative', cursor:'pointer', display:'flex', flexDirection:'column' }}>
+                  <button onClick={e=>{e.stopPropagation();deleteCloth(c.id);}} style={{ position:'absolute', top:4, right:4, width:18, height:18, borderRadius:'50%', background:'#E24B4A', color:'white', border:'none', fontSize:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1 }}>✕</button>
+                  <div style={{ width:'100%', paddingTop:'100%', borderRadius:8, background:S.bg, position:'relative', marginBottom:8, overflow:'hidden', flexShrink:0 }}>
+                    {c.image?<img src={c.image} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }}/>:<span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:28 }}>{CAT_EMOJI[c.category]||'👔'}</span>}
                   </div>
-                  <div style={{ fontSize:11, fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.name}</div>
-                  {c.brand && <div style={{ fontSize:10, color:S.sub, marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.brand}</div>}
-                  <div style={{ fontSize:10, color:S.sub, marginTop:1 }}>{c.category} · {c.temp_min}~{c.temp_max}°C</div>
-                  {c.purchase_date && <div style={{ fontSize:10, color:S.hint, marginTop:1 }}>{c.purchase_date.replace(/-/g,'.')}</div>}
-                  <div style={{ fontSize:10, color:'#EF9F27', marginTop:1 }}>{'★'.repeat(c.preference||3)}{'☆'.repeat(5-(c.preference||3))}</div>
+                  <div style={{ fontSize:11, fontWeight:500, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', lineHeight:1.3, minHeight:28, marginBottom:3 }}>{c.name}</div>
+                  <div style={{ fontSize:10, color:S.sub, marginTop:'auto' }}>
+                    {c.brand && <div style={{ whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginBottom:1 }}>{c.brand}</div>}
+                    {c.price && <div style={{ color:S.accent, fontWeight:500, marginBottom:1 }}>{c.price}</div>}
+                    <div>{c.category} · {c.temp_min}~{c.temp_max}°C</div>
+                    {c.purchase_date && <div style={{ color:S.hint, marginTop:1 }}>{c.purchase_date.replace(/-/g,'.')}</div>}
+                    <div style={{ color:'#EF9F27', marginTop:2 }}>{'★'.repeat(c.preference||3)}{'☆'.repeat(5-(c.preference||3))}</div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -615,6 +618,10 @@ export default function Home() {
                     <option key={b} value={b}/>
                   ))}
                 </datalist>
+              </div>
+              <div style={formRow}>
+                <div style={label}>가격</div>
+                <input value={clothForm.price||''} onChange={e=>setClothForm({...clothForm,price:e.target.value})} placeholder="예: 45,000원" style={input()}/>
               </div>
               <div style={formRow}>
                 <div style={label}>카테고리</div>
