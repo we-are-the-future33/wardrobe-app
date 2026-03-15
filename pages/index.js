@@ -163,7 +163,7 @@ export default function Home() {
   const [orderUrlLoading, setOrderUrlLoading] = useState({}); // { itemId: bool }
 
   // 설정
-  const [settings, setSettings] = useState({ home_city:'', cold_sensitivity:0, layering:'auto' });
+  const [settings, setSettings] = useState({ home_city:'', cold_sensitivity:0, layering:'auto', rewear_days:2, exclude_rating:1, outer_temp:15, no_repeat_week:false });
 
   // UI
   const [toast, setToast]         = useState('');
@@ -175,7 +175,7 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
     // clothes는 아래 mounted useEffect에서 이미지 포함해서 로드
-    setSettings(LS.get('settings', { home_city:'', cold_sensitivity:0, layering:'auto' }));
+    setSettings(LS.get('settings', { home_city:'', cold_sensitivity:0, layering:'auto', rewear_days:2, exclude_rating:1, outer_temp:15, no_repeat_week:false }));
     setWeekPlan(buildWeekPlan());
     setClothForm(f => ({ ...f, purchase_date: new Date().toISOString().split('T')[0] }));
     // 주간 코디 복원
@@ -300,9 +300,9 @@ export default function Home() {
         return `[${cat}] ` + items.map(c => {
           if (c.last_worn) {
             const diffDays = Math.floor((today - new Date(c.last_worn)) / 86400000);
-            if (diffDays < 2) return `${c.name}(착용불가-${diffDays}일전착용)`;
+            if (diffDays < (settings.rewear_days||2)) return `${c.name}(착용불가-${diffDays}일전착용)`;
           }
-          if ((c.preference||3) <= 1) return `${c.name}(추천제외)`;
+          if ((c.preference||3) <= (settings.exclude_rating||1)) return `${c.name}(추천제외)`;
           const tags = [
             c.material && `소재:${c.material}`,
             c.season && `계절:${c.season}`,
@@ -662,9 +662,9 @@ export default function Home() {
         return `[${cat}] `+items.map(c => {
           if (c.last_worn) {
             const diffDays = Math.floor((today - new Date(c.last_worn)) / 86400000);
-            if (diffDays<2) return `${c.name}(착용불가)`;
+            if (diffDays<(settings.rewear_days||2)) return `${c.name}(착용불가)`;
           }
-          if ((c.preference||3) <= 1) return `${c.name}(추천제외)`;
+          if ((c.preference||3) <= (settings.exclude_rating||1)) return `${c.name}(추천제외)`;
           const tags = [
             c.material && `소재:${c.material}`,
             c.season && `계절:${c.season}`,
@@ -752,15 +752,17 @@ export default function Home() {
     setRegenLoading(m=>({...m,[date]:true}));
     try {
       const today = new Date();
-      const confirmedNames = weekOutfits.filter(o=>confirmedDates.has(o.date)).flatMap(o=>[o.outer,o.top,o.bottom,o.inner].filter(Boolean));
+      const confirmedNames = weekOutfits.filter(o=>confirmedDates.has(o.date)).flatMap(o=>[o.outer2,o.outer,o.top,o.bottom,o.inner].filter(Boolean));
+      const usedInWeek = settings.no_repeat_week ? weekOutfits.flatMap(o=>[o.outer2,o.outer,o.top,o.bottom].filter(Boolean)) : [];
       const clothText = ['아우터','상의','하의','원피스','신발'].map(cat => {
         const items = clothes.filter(c=>c.category===cat);
         if (!items.length) return '';
         return '['+cat+'] '+items.map(c => {
           if (confirmedNames.includes(c.name)) return c.name+'(이미확정)';
+          if (usedInWeek.includes(c.name) && !confirmedNames.includes(c.name)) return c.name+'(이번주사용)';
           if (c.last_worn) {
             const diffDays = Math.floor((today - new Date(c.last_worn)) / 86400000);
-            if (diffDays<2) return c.name+'(착용불가)';
+            if (diffDays<(settings.rewear_days||2)) return c.name+'(착용불가)';
           }
           if ((c.preference||3) <= 1) return c.name+'(추천제외)';
           return c.name+'('+c.temp_min+'~'+c.temp_max+'C)';
@@ -1178,6 +1180,63 @@ export default function Home() {
                 ))}
               </div>
             </div>
+            <button onClick={saveSettings} style={btnPrimary({ width:'100%', marginTop:12 })}>저장</button>
+          </div>
+
+          {/* 추천 규칙 설정 */}
+          <div style={card}>
+            <div style={{ fontSize:12, fontWeight:500, color:S.sub, marginBottom:4 }}>추천 규칙</div>
+            <div style={{ fontSize:11, color:S.hint, marginBottom:14, lineHeight:1.6 }}>
+              자동 규칙: 온도 범위 매칭, 착용 상황 매칭, 소재·계절 기반 AI 판단<br/>
+              아래 규칙은 직접 조정 가능해요.
+            </div>
+
+            {/* 재착용 대기일 */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', borderTop:`1px solid ${S.border}` }}>
+              <div style={{ fontSize:14 }}>재착용 대기일
+                <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>착용 후 며칠간 추천 제외</span>
+              </div>
+              <div style={{ display:'flex', gap:6 }}>
+                {[1,2,3,5,7].map(d=>(
+                  <button key={d} onClick={()=>setSettings(s=>({...s,rewear_days:d}))} style={{ padding:'6px 10px', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${(settings.rewear_days||2)===d?S.accent:S.border}`, background:(settings.rewear_days||2)===d?S.accent:S.surface, color:(settings.rewear_days||2)===d?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{d}일</button>
+                ))}
+              </div>
+            </div>
+
+            {/* 추천제외 기준 별점 */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', borderTop:`1px solid ${S.border}` }}>
+              <div style={{ fontSize:14 }}>추천 제외 기준
+                <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>이 별점 이하 옷은 추천 안 함</span>
+              </div>
+              <div style={{ display:'flex', gap:6 }}>
+                {[[0,'없음'],[1,'★ 이하'],[2,'★★ 이하']].map(([v,l])=>(
+                  <button key={v} onClick={()=>setSettings(s=>({...s,exclude_rating:v}))} style={{ padding:'6px 10px', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${(settings.exclude_rating??1)===v?S.accent:S.border}`, background:(settings.exclude_rating??1)===v?S.accent:S.surface, color:(settings.exclude_rating??1)===v?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{l}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* 아우터 필수 기준 온도 */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', borderTop:`1px solid ${S.border}` }}>
+              <div style={{ fontSize:14 }}>아우터 필수 기준
+                <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>체감온도 이하면 아우터 필수</span>
+              </div>
+              <div style={{ display:'flex', gap:6 }}>
+                {[10,13,15,18].map(t=>(
+                  <button key={t} onClick={()=>setSettings(s=>({...s,outer_temp:t}))} style={{ padding:'6px 10px', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${(settings.outer_temp||15)===t?S.accent:S.border}`, background:(settings.outer_temp||15)===t?S.accent:S.surface, color:(settings.outer_temp||15)===t?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{t}°C</button>
+                ))}
+              </div>
+            </div>
+
+            {/* 주간 중복 사용 */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', borderTop:`1px solid ${S.border}` }}>
+              <div style={{ fontSize:14 }}>주간 동일 아이템 반복
+                <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>같은 주에 같은 옷 재사용 허용</span>
+              </div>
+              <button onClick={()=>setSettings(s=>({...s,no_repeat_week:!s.no_repeat_week}))} style={{ padding:'6px 14px', borderRadius:8, fontSize:12, fontWeight:500, border:`1px solid ${settings.no_repeat_week?S.danger:S.border}`, background:settings.no_repeat_week?'#FEE2E2':S.surface, color:settings.no_repeat_week?S.danger:S.sub, cursor:'pointer', fontFamily:'inherit' }}>
+                {settings.no_repeat_week ? '반복 금지' : '허용'}
+              </button>
+            </div>
+
             <button onClick={saveSettings} style={btnPrimary({ width:'100%', marginTop:12 })}>저장</button>
           </div>
           <div style={card}>
