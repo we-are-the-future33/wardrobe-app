@@ -968,7 +968,7 @@ export default function Home() {
 
       {/* ── 옷 추가 모달 ── */}
       {mounted && modalOpen && createPortal(
-        <div onClick={e=>e.target===e.currentTarget&&setModalOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
+        <div onClick={e=>{ if(e.target!==e.currentTarget) return; const anyLoading = orderLoading||urlLoading||batchLoading||analyzeLoading||Object.values(orderUrlLoading).some(Boolean); if(anyLoading){ showToast('분석 중에는 닫을 수 없어요'); return; } setModalOpen(false); }} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
           <div style={{ background:'#fff', borderRadius:'20px 20px 0 0', padding:20, width:'100%', maxWidth:480, height:'85vh', overflowY:'auto' }}>
             <div style={{ fontSize:16, fontWeight:700, marginBottom:16 }}>
               {editingId ? '옷 수정' : pendingItems.length>0 ? `옷 추가 (${(resultTags?.setCount||pendingItems.length+1)-pendingItems.length}/${resultTags?.setCount||pendingItems.length+1})` : '옷 추가'}
@@ -1097,12 +1097,12 @@ export default function Home() {
                             {/* 행1: 색상 + 사이즈 - 가장 중요, 크게 */}
                             <div style={{ display:'grid', gridTemplateColumns:'1fr 80px', gap:4, marginBottom:4 }}>
                               <div>
-                                <div style={{ fontSize:9, color:S.hint, marginBottom:2 }}>색상 (구매 옵션)</div>
-                                <input value={item.color} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,color:e.target.value}:b))} style={{ width:'100%', border:`1.5px solid #85B7EB`, borderRadius:6, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', background:'#F0F7FF', boxSizing:'border-box' }} placeholder="예: 블랙, 화이트오트밀"/>
+                                <div style={{ fontSize:9, color:S.hint, marginBottom:2 }}>색상</div>
+                                <input value={item.color} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,color:e.target.value}:b))} style={{ width:'100%', border:`1px solid ${S.border}`, borderRadius:6, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', background:S.surface, boxSizing:'border-box' }} placeholder="예: 블랙, 화이트오트밀"/>
                               </div>
                               <div>
                                 <div style={{ fontSize:9, color:S.hint, marginBottom:2 }}>사이즈</div>
-                                <input value={item.size||''} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,size:e.target.value}:b))} style={{ width:'100%', border:`1.5px solid #85B7EB`, borderRadius:6, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', background:'#F0F7FF', boxSizing:'border-box' }} placeholder="M, L, 95"/>
+                                <input value={item.size||''} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,size:e.target.value}:b))} style={{ width:'100%', border:`1px solid ${S.border}`, borderRadius:6, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', background:S.surface, boxSizing:'border-box' }} placeholder="M, L, 95"/>
                               </div>
                             </div>
                             {/* 행2: 브랜드 + 가격 + 카테고리 */}
@@ -1252,13 +1252,13 @@ export default function Home() {
             </div>}
             {addTab!=='order' && (
             <div style={{ display:'flex', gap:8, marginTop:16 }}>
-              <button onClick={()=>setModalOpen(false)} style={btn({ flex:1 })}>취소</button>
+              <button onClick={()=>{ const anyLoading = orderLoading||urlLoading||batchLoading||analyzeLoading||Object.values(orderUrlLoading).some(Boolean); if(anyLoading){ showToast('분석 중에는 닫을 수 없어요'); return; } setModalOpen(false); }} style={btn({ flex:1 })}>취소</button>
               <button onClick={saveCloth} style={btnPrimary({ flex:1 })}>{editingId?'수정 완료':'저장'}</button>
             </div>
             )}
             {addTab==='order' && (
             <div style={{ marginTop:8 }}>
-              <button onClick={()=>setModalOpen(false)} style={btn({ width:'100%' })}>닫기</button>
+              <button onClick={()=>{ const anyLoading = orderLoading||urlLoading||batchLoading||analyzeLoading||Object.values(orderUrlLoading).some(Boolean); if(anyLoading){ showToast('분석 중에는 닫을 수 없어요'); return; } setModalOpen(false); }} style={btn({ width:'100%' })}>닫기</button>
             </div>
             )}
           </div>
