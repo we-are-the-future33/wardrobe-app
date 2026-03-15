@@ -303,7 +303,13 @@ export default function Home() {
             if (diffDays < 2) return `${c.name}(착용불가-${diffDays}일전착용)`;
           }
           if ((c.preference||3) <= 1) return `${c.name}(추천제외)`;
-          return `${c.name}(${c.temp_min}~${c.temp_max}C,선호도${c.preference||3})`;
+          const tags = [
+            c.material && `소재:${c.material}`,
+            c.season && `계절:${c.season}`,
+            c.style && `스타일:${c.style}`,
+            c.color && `색상:${c.color}`,
+          ].filter(Boolean).join(',');
+          return `${c.name}(${c.temp_min}~${c.temp_max}C,선호도${c.preference||3}${tags?','+tags:''})`;
         }).join(', ');
       }).filter(Boolean).join('\n');
       const weatherText = wList.map(w => `- ${w.time} [${w.isIndoor?'실내':'실외'}] ${w.city}: ${w.temp}°C`).join('\n');
@@ -658,7 +664,13 @@ export default function Home() {
             if (diffDays<2) return `${c.name}(착용불가)`;
           }
           if ((c.preference||3) <= 1) return `${c.name}(추천제외)`;
-          return `${c.name}(${c.temp_min}~${c.temp_max}C)`;
+          const tags = [
+            c.material && `소재:${c.material}`,
+            c.season && `계절:${c.season}`,
+            c.style && `스타일:${c.style}`,
+            c.color && `색상:${c.color}`,
+          ].filter(Boolean).join(',');
+          return `${c.name}(${c.temp_min}~${c.temp_max}C${tags?','+tags:''})`;
         }).join(', ');
       }).filter(Boolean).join('\n');
       const dayText = weatherDays.map(d => {
