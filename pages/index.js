@@ -142,10 +142,9 @@ export default function Home() {
   // ── 초기화 (클라이언트 전용) ─────────────────────
   useEffect(() => {
     setMounted(true);
-    setClothes(LS.get('clothes', []));
+    // clothes는 아래 mounted useEffect에서 이미지 포함해서 로드
     setSettings(LS.get('settings', { home_city:'', cold_sensitivity:0 }));
-    setWeekPlan(buildWeekPlan()); // SSR 안전: 클라이언트에서만 날짜 계산
-    // 구매 날짜 초기값도 클라이언트에서
+    setWeekPlan(buildWeekPlan());
     setClothForm(f => ({ ...f, purchase_date: new Date().toISOString().split('T')[0] }));
   }, []);
 
@@ -168,32 +167,43 @@ export default function Home() {
     LS.set('clothes', toStore);
   }, []);
 
-  // 이미지 포함해서 옷장 로드 (구버전 data: 인라인 포함 마이그레이션)
-  const loadClothesWithImages = useCallback((raw) => {
-    return raw.map(c => {
-      // 신버전: hasImage 플래그 → ImageStore에서 로드
-      if (c.hasImage) return { ...c, image: ImageStore.get(c.id) };
-      // 구버전: image 필드에 직접 base64가 있는 경우 → ImageStore로 마이그레이션
-      if (c.image && c.image.startsWith('data:')) {
-        ImageStore.set(c.id, c.image);
-        return { ...c, hasImage: true };
-      }
-      return { ...c, image: null };
-    });
-  }, []);
-
   useEffect(() => {
     if (!mounted) return;
-    const raw = LS.get('clothes', []);
-    const withImages = loadClothesWithImages(raw);
+    // localStorage에서 raw JSON 직접 파싱 (JSON.parse로 image 필드 포함 전체 복원)
+    let raw = [];
+    try {
+      const stored = localStorage.getItem('clothes');
+      raw = stored ? JSON.parse(stored) : [];
+    } catch { raw = []; }
+
+    const withImages = raw.map(c => {
+      // 케이스 1: 신버전 - hasImage 플래그 → img_{id} 키에서 로드
+      if (c.hasImage) {
+        const img = localStorage.getItem('img_' + c.id);
+        return { ...c, image: img || null };
+      }
+      // 케이스 2: 구버전 - image 필드에 base64 직접 포함
+      if (c.image && c.image.startsWith('data:')) {
+        // img_{id}로 이전 저장
+        try { localStorage.setItem('img_' + c.id, c.image); } catch(e) { console.warn('이미지 이전 실패:', c.id); }
+        return { ...c, hasImage: true };
+      }
+      // 케이스 3: img_{id} 키에 이미지가 있는데 hasImage 플래그만 없는 경우
+      const imgFallback = localStorage.getItem('img_' + c.id);
+      if (imgFallback) return { ...c, image: imgFallback, hasImage: true };
+
+      return { ...c, image: null };
+    });
+
     setClothes(withImages);
-    // 마이그레이션 후 새 포맷으로 재저장 (image 필드 제거)
+
+    // 신버전 포맷으로 정리 (image 인라인 필드 제거, hasImage 플래그로 교체)
     const toStore = withImages.map(c => {
       const { image, ...rest } = c;
-      return { ...rest, hasImage: !!ImageStore.get(c.id) };
+      return { ...rest, hasImage: !!localStorage.getItem('img_' + c.id) };
     });
-    LS.set('clothes', toStore);
-  }, [mounted, loadClothesWithImages]);
+    try { localStorage.setItem('clothes', JSON.stringify(toStore)); } catch(e) { console.warn('clothes 재저장 실패:', e); }
+  }, [mounted]);
 
   const fetchWeather = async (city, time) => {
     const r = await fetch(`/api/weather?city=${encodeURIComponent(city)}&time=${time}`);
