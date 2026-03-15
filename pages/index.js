@@ -594,7 +594,7 @@ export default function Home() {
   };
 
   const resetModal = () => {
-    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', size:'', brand:'', price:'', season:'', purchase_date:new Date().toISOString().split('T')[0], preference:3 });
+    setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', size:'', material:'', brand:'', price:'', season:'', purchase_date:new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
     setResultTags(null); setAddTab('url'); setEditingId(null); setPendingItems([]); setColorOptions([]);
     setBatchMode(false); setBatchItems([]); setBatchUrls(''); setOrderItems([]); setOrderUrlMap({}); setOrderUrlLoading({});
@@ -602,7 +602,7 @@ export default function Home() {
 
   const openEditModal = (c) => {
     setEditingId(c.id);
-    setClothForm({ name:c.name, category:c.category, temp_min:String(c.temp_min), temp_max:String(c.temp_max), style:c.style||'', color:c.color||'', size:c.size||'', brand:c.brand||'', price:c.price||'', season:c.season||'', purchase_date:c.purchase_date||new Date().toISOString().split('T')[0], preference:c.preference||3 });
+    setClothForm({ name:c.name, category:c.category, temp_min:String(c.temp_min), temp_max:String(c.temp_max), style:c.style||'', color:c.color||'', size:c.size||'', material:c.material||'', brand:c.brand||'', price:c.price||'', season:c.season||'', purchase_date:c.purchase_date||new Date().toISOString().split('T')[0], preference:c.preference||3 });
     if (c.image) setFetchedImage(c.image);
     setImageBase64(null); setImageType(null); setResultTags(null); setAddTab('url'); setShopUrl('');
     setModalOpen(true);
@@ -690,10 +690,20 @@ export default function Home() {
       const data = await r.json();
       const text = data.content?.[0]?.text?.replace(/```json|```/g,'').trim()||'{}';
       const parsed = JSON.parse(text);
-      // 날씨 데이터를 outfit에 병합
+      // 날씨 데이터를 outfit에 병합 (실내/실외 구분)
       const weatherMap = Object.fromEntries(weatherDays.map(d=>[d.date, d.weather]));
+      // 날짜별 실내 장소 수집
+      const indoorMap = {};
+      activeDays.forEach(d => {
+        if (d.env === 'indoor') {
+          if (!indoorMap[d.date]) indoorMap[d.date] = [];
+          indoorMap[d.date].push({ place: d.place, temp: INDOOR_TEMPS[d.place]||21 });
+        }
+      });
       const outfitsWithWeather = (parsed.outfits||[]).map(o=>({
-        ...o, weather: weatherMap[o.date] || null
+        ...o,
+        weather: weatherMap[o.date] || null,
+        indoorPlaces: indoorMap[o.date] || [],
       }));
       setWeekOutfits(outfitsWithWeather);
       LS.set('weekOutfits', outfitsWithWeather);
@@ -844,18 +854,23 @@ export default function Home() {
             <div style={{ fontSize:13, fontWeight:700, color:S.accent }}>
               {new Date(outfit.date).toLocaleDateString('ko-KR',{ month:'long', day:'numeric', weekday:'short' })}
             </div>
-            <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, color:S.sub }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:S.sub, flexWrap:'wrap', justifyContent:'flex-end' }}>
                 {w ? (
-                  <>
+                  <span style={{ display:'flex', alignItems:'center', gap:3 }}>
                     <span>{weatherEmoji(w)}</span>
-                    <span style={{ fontWeight:600, color:S.text }}>{w.temp ?? w.temperature ?? w.current?.temp_c ?? '?'}°C</span>
-                    {(w.feels_like ?? w.feelslike_c) != null && (w.feels_like ?? w.feelslike_c) !== (w.temp ?? w.temperature) && <span style={{ fontSize:10 }}>체감 {w.feels_like ?? w.feelslike_c}°C</span>}
-                    {(w.chance_of_rain > 40 || (w.condition||'').includes('비')) && (
-                      <span style={{ marginLeft:2, fontSize:13 }} title={`강수확률 ${w.chance_of_rain}%`}>☂️</span>
-                    )}
-                  </>
+                    <span style={{ fontWeight:600, color:S.text }}>{w.temp ?? '?'}°C</span>
+                    {(w.feels_like != null && w.feels_like !== w.temp) && <span style={{ fontSize:10 }}>체감 {w.feels_like}°C</span>}
+                    {(w.chance_of_rain > 40 || (w.condition||'').includes('비')) && <span style={{ fontSize:13 }}>☂️</span>}
+                  </span>
                 ) : (
                   <span style={{ fontSize:11, color:S.hint }}>날씨 로딩중...</span>
+                )}
+                {outfit.indoorPlaces && outfit.indoorPlaces.length > 0 && (
+                  <span style={{ display:'flex', alignItems:'center', gap:3, fontSize:11, color:S.sub }}>
+                    <span>🏢</span>
+                    <span>{outfit.indoorPlaces[0].temp}°C</span>
+                    <span style={{ fontSize:10, color:S.hint }}>{outfit.indoorPlaces[0].place}</span>
+                  </span>
                 )}
               </div>
           </div>
@@ -1430,6 +1445,18 @@ export default function Home() {
               <div style={formRow}>
                 <div style={labelSt}>사이즈</div>
                 <input value={clothForm.size||''} onChange={e=>setClothForm(f=>({...f,size:e.target.value}))} placeholder="예: M, L, 95, Free" style={inputSt()}/>
+              </div>
+              <div style={formRow}>
+                <div style={labelSt}>소재</div>
+                <input value={clothForm.material||''} onChange={e=>setClothForm(f=>({...f,material:e.target.value}))} placeholder="예: 면, 울, 폴리에스터" style={inputSt()}/>
+              </div>
+              <div style={formRow}>
+                <div style={labelSt}>계절</div>
+                <div style={{ display:'flex', gap:6 }}>
+                  {['봄/가을','여름','겨울','사계절'].map(s=>(
+                    <button key={s} onClick={()=>setClothForm(f=>({...f,season:f.season===s?'':s}))} style={{ padding:'5px 10px', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${clothForm.season===s?S.accent:S.border}`, background:clothForm.season===s?S.accent:S.surface, color:clothForm.season===s?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit', flex:1 }}>{s}</button>
+                  ))}
+                </div>
               </div>
               {colorOptions.length>0 && (
                 <div style={{ marginBottom:12, padding:'10px 12px', background:'#E6F1FB', borderRadius:10 }}>
