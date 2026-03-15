@@ -127,6 +127,8 @@ export default function Home() {
   const [weekPlan, setWeekPlan]   = useState([]); // useEffect에서 초기화 (SSR 안전)
   const [weekOffset, setWeekOffset] = useState(0);
   const [weekOutfits, setWeekOutfits] = useState([]);
+  const [confirmedDates, setConfirmedDates] = useState(new Set()); // 확정된 날짜
+  const [regenLoading, setRegenLoading] = useState({}); // { date: bool }
   const [weekLoading, setWeekLoading] = useState(false);
   const [packingList, setPackingList] = useState('');
 
@@ -181,6 +183,8 @@ export default function Home() {
     if (savedWeekOutfits.length > 0) setWeekOutfits(savedWeekOutfits);
     const savedPackingList = LS.get('packingList', []);
     if (savedPackingList.length > 0) setPackingList(savedPackingList);
+    const savedConfirmed = LS.get('confirmedDates', []);
+    if (savedConfirmed.length > 0) setConfirmedDates(new Set(savedConfirmed));
   }, []);
 
   // ── 헬퍼 ─────────────────────────────────────────
@@ -672,6 +676,61 @@ export default function Home() {
     setRestoreProgress(p => ({ ...p, log: `완료! ${targets.length}개 중 성공: ${done}개` }));
   };
 
+  const regenOutfit = async (outfit) => {
+    const date = outfit.date;
+    setRegenLoading(m=>({...m,[date]:true}));
+    try {
+      const homeCity = settings.home_city || '성남시';
+      const today = new Date();
+      const clothText = ['아우터','상의','하의','원피스','신발'].map(cat => {
+        const items = clothes.filter(c=>c.category===cat);
+        if (!items.length) return '';
+        // 이미 확정된 코디의 옷은 제외
+        const confirmedNames = weekOutfits.filter(o=>confirmedDates.has(o.date)).flatMap(o=>[o.outer,o.top,o.bottom,o.inner].filter(Boolean));
+        return `[${cat}] `+items.map(c => {
+          if (confirmedNames.includes(c.name)) return `${c.name}(이미확정)`;
+          if (c.last_worn) {
+            const diffDays = Math.floor((today - new Date(c.last_worn)) / 86400000);
+            if (diffDays<2) return `${c.name}(착용불가)`;
+          }
+          return `${c.name}(${c.temp_min}~${c.temp_max}C)`;
+        }).join(', ');
+      }).filter(Boolean).join('
+');
+      const dateStr = new Date(date).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+      const weatherInfo = outfit.weather ? `${outfit.weather.temp}°C ${outfit.weather.condition}` : '';
+      const r = await fetch('/api/claude', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          model:'claude-sonnet-4-20250514', max_tokens:500,
+          system:'패션 스타일리스트. JSON만 반환.',
+          messages:[{ role:'user', content:`${dateStr} ${weatherInfo} 날 다른 코디 1가지 추천. (이미확정)(착용불가) 옷 절대 사용 금지.
+
+옷장:
+${clothText}
+
+{"outer":"null가능","top":"이름","bottom":"null가능","reason":"이유"}` }]
+        })
+      });
+      const data = await r.json();
+      const text = data.content?.[0]?.text?.replace(/```json|```/g,'').trim()||'{}';
+      const newOutfit = JSON.parse(text);
+      const updated = weekOutfits.map(o => o.date===date ? {...o, ...newOutfit, date, weather:o.weather} : o);
+      setWeekOutfits(updated);
+      LS.set('weekOutfits', updated);
+    } catch(e) { showToast('재추천 실패: '+e.message); }
+    finally { setRegenLoading(m=>({...m,[date]:false})); }
+  };
+
+  const toggleConfirm = (date) => {
+    setConfirmedDates(prev => {
+      const next = new Set(prev);
+      next.has(date) ? next.delete(date) : next.add(date);
+      LS.set('confirmedDates', [...next]);
+      return next;
+    });
+  };
+
   const addSchedule  = () => { if(schedules.length>=6)return showToast('최대 6개'); setSchedules(s=>[...s,{ city:'', time:'18:00', env:'outdoor', place:'실외 이동', isHome:false }]); };
   const updateSchedule = (i, key, val) => setSchedules(s=>s.map((x,idx)=>idx===i?{...x,[key]:val}:x));
 
@@ -742,7 +801,20 @@ export default function Home() {
             );
           })}
         </div>
-        <div style={{ background:S.bg, borderRadius:S.radiusSm, padding:'8px 10px', fontSize:11, color:S.sub, lineHeight:1.6, marginTop:'auto', marginBottom:showDate?0:8 }}>{outfit.reason}</div>
+        <div style={{ background:S.bg, borderRadius:S.radiusSm, padding:'8px 10px', fontSize:11, color:S.sub, lineHeight:1.6, marginTop:'auto', marginBottom:8 }}>{outfit.reason}</div>
+        {showDate && outfit.date && (
+          <div style={{ display:'flex', gap:6, marginTop:4 }}>
+            <button
+              onClick={()=>toggleConfirm(outfit.date)}
+              style={{ flex:1, padding:'7px 0', borderRadius:8, fontSize:12, fontWeight:600, fontFamily:'inherit', cursor:'pointer', border:`1.5px solid ${confirmedDates.has(outfit.date)?'#27500A':'#C0DD97'}`, background:confirmedDates.has(outfit.date)?'#27500A':'#EAF3DE', color:confirmedDates.has(outfit.date)?'#fff':'#27500A' }}
+            >{confirmedDates.has(outfit.date) ? '✓ 확정됨' : '확정하기'}</button>
+            <button
+              onClick={()=>regenOutfit(outfit)}
+              disabled={regenLoading[outfit.date] || confirmedDates.has(outfit.date)}
+              style={{ flex:1, padding:'7px 0', borderRadius:8, fontSize:12, fontWeight:500, fontFamily:'inherit', cursor:confirmedDates.has(outfit.date)?'not-allowed':'pointer', border:`1px solid ${S.border}`, background:S.surface, color:confirmedDates.has(outfit.date)?S.hint:S.sub, opacity:confirmedDates.has(outfit.date)?0.4:1 }}
+            >{regenLoading[outfit.date] ? '추천 중...' : '↺ 다시 추천'}</button>
+          </div>
+        )}
         {!showDate && (
           <button onClick={()=>{ layers.forEach(l=>markWorn(l.name)); }} style={{ ...btn({ width:'100%', marginTop:8, fontSize:12 }) }}>
             ✓ 오늘 입었어요
@@ -875,7 +947,7 @@ export default function Home() {
           {weekOutfits.length > 0 && (
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
               <span style={{ fontSize:12, color:S.sub }}>주간 코디 — 탭 나가도 유지돼요</span>
-              <button onClick={()=>{ setWeekOutfits([]); setPackingList([]); LS.set('weekOutfits',[]); LS.set('packingList',[]); }} style={{ fontSize:11, color:S.hint, background:'none', border:'none', cursor:'pointer', fontFamily:'inherit' }}>초기화</button>
+              <button onClick={()=>{ setWeekOutfits([]); setPackingList([]); setConfirmedDates(new Set()); LS.set('weekOutfits',[]); LS.set('packingList',[]); LS.set('confirmedDates',[]); }} style={{ fontSize:11, color:S.hint, background:'none', border:'none', cursor:'pointer', fontFamily:'inherit' }}>초기화</button>
             </div>
           )}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))', gap:12 }}>
