@@ -676,7 +676,7 @@ export default function Home() {
         }).join(', ');
       }).filter(Boolean).join('\n');
       const dayText = weatherDays.map(d => {
-        const dateObj = new Date(d.date);
+        const [dty,dtm,dtdy] = d.date.split('-').map(Number); const dateObj = new Date(dty,dtm-1,dtdy);
         const dateStr = dateObj.toLocaleDateString('ko-KR',{ month:'long', day:'numeric', weekday:'short' });
         const dow = ['일','월','화','수','목','금','토'][dateObj.getDay()];
         return `- [날짜:${d.date}] ${dateStr}(${dow}요일): ${d.city} ${d.weather.temp}°C ${d.weather.condition}, ${d.env==='indoor'?d.place:'실외 활동'}, ${d.occasion}`;
@@ -768,7 +768,7 @@ export default function Home() {
           return c.name+'('+c.temp_min+'~'+c.temp_max+'C)';
         }).join(', ');
       }).filter(Boolean).join('\n');
-      const dateStr = new Date(date).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+      const [ry,rm,rd] = date.split('-').map(Number); const dateStr = new Date(ry,rm-1,rd).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
       const weatherInfo = outfit.weather ? outfit.weather.temp+'°C '+outfit.weather.condition : '';
       const prompt = dateStr+' '+weatherInfo+' 날 다른 코디 1가지 추천. (이미확정)(착용불가) 옷 절대 사용 금지.\n\n옷장:\n'+clothText+'\n\n{"outer2":"추가레이어또는null","outer":"아우터또는null","top":"이름(필수)","bottom":"이름(원피스외필수)","reason":"이유"}';
       const r = await fetch('/api/claude', {
@@ -796,6 +796,50 @@ export default function Home() {
       LS.set('confirmedDates', [...next]);
       return next;
     });
+  };
+
+  // 아이템 하나만 교체 (slot: 'outer'|'outer2'|'top'|'bottom')
+  const regenItem = async (outfit, slot) => {
+    const date = outfit.date;
+    const key = `${date}_${slot}`;
+    setRegenLoading(m=>({...m,[key]:true}));
+    try {
+      const today = new Date();
+      const cat = slot==='top'||slot==='outer2' ? '상의,아우터' : slot==='outer' ? '아우터' : '하의,원피스';
+      const confirmedNames = weekOutfits.filter(o=>confirmedDates.has(o.date)).flatMap(o=>[o.outer2,o.outer,o.top,o.bottom].filter(Boolean));
+      const usedNames = [...confirmedNames, ...[outfit.outer2,outfit.outer,outfit.top,outfit.bottom].filter((v,i)=>['outer2','outer','top','bottom'][i]!==slot&&v&&v!=='null')];
+      const candidates = clothes.filter(c=>{
+        if (usedNames.includes(c.name)) return false;
+        if (c.last_worn) { const d=Math.floor((today-new Date(c.last_worn))/86400000); if(d<(settings.rewear_days||2)) return false; }
+        if ((c.preference||3)<=(settings.exclude_rating??1)) return false;
+        return true;
+      }).map(c=>c.name+'('+c.temp_min+'~'+c.temp_max+'C'+(c.color?',색:'+c.color:'')+(c.style?',스타일:'+c.style:'')+(c.occasions?',착용:'+c.occasions:'')+')').join(', ');
+      const [ry,rm,rd] = date.split('-').map(Number);
+      const dateStr = new Date(ry,rm-1,rd).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+      const weatherInfo = outfit.weather ? outfit.weather.temp+'°C '+outfit.weather.condition : '';
+      const slotLabel = {outer:'아우터',outer2:'미들레이어',top:'상의',bottom:'하의'}[slot];
+      const prompt = `${dateStr} ${weatherInfo} 날, 이 코디에서 ${slotLabel}만 교체해줘.\n현재 코디: 아우터=${outfit.outer||'없음'}, 상의=${outfit.top}, 하의=${outfit.bottom||'없음'}\n\n교체 후보(${slotLabel}용): ${candidates}\n\n교체할 ${slotLabel} 이름 하나만 반환: {"${slot}":"이름"}`;
+      const r = await fetch('/api/claude', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:100, system:'패션 스타일리스트. JSON만 반환.', messages:[{role:'user',content:prompt}] })
+      });
+      const data = await r.json();
+      const text = data.content?.[0]?.text?.replace(/```json|```/g,'').trim()||'{}';
+      const result = JSON.parse(text);
+      if (result[slot]) {
+        const updated = weekOutfits.map(o => o.date===date ? {...o, [slot]:result[slot]} : o);
+        setWeekOutfits(updated);
+        LS.set('weekOutfits', updated);
+      }
+    } catch(e) { showToast('재추천 실패'); }
+    finally { setRegenLoading(m=>({...m,[key]:false})); }
+  };
+
+  // 미확정 날 전체 재추천
+  const regenUnconfirmed = async () => {
+    const targets = weekOutfits.filter(o=>!confirmedDates.has(o.date));
+    if (!targets.length) return showToast('모든 날이 확정됐어요');
+    for (const o of targets) await regenOutfit(o);
   };
 
   const addSchedule  = () => { if(schedules.length>=6)return showToast('최대 6개'); setSchedules(s=>[...s,{ city:'', time:'18:00', env:'outdoor', place:'실외 이동', isHome:false }]); };
@@ -848,10 +892,10 @@ export default function Home() {
     const hasOuter2 = outfit.outer2 && outfit.outer2!=='null';
     const hasOuter = outfit.outer && outfit.outer!=='null';
     const layers = [
-      outfit.top && outfit.top!=='null' && { label:'상의', name:outfit.top },
-      hasOuter2 && { label: hasOuter ? '미들레이어' : '아우터', name:outfit.outer2 },
-      hasOuter && { label:'아우터', name:outfit.outer },
-      outfit.bottom && outfit.bottom!=='null' && { label:'하의', name:outfit.bottom },
+      outfit.top && outfit.top!=='null' && { label:'상의', name:outfit.top, slot:'top' },
+      hasOuter2 && { label: hasOuter ? '미들레이어' : '아우터', name:outfit.outer2, slot:'outer2' },
+      hasOuter && { label:'아우터', name:outfit.outer, slot:'outer' },
+      outfit.bottom && outfit.bottom!=='null' && { label:'하의', name:outfit.bottom, slot:'bottom' },
     ].filter(Boolean);
     const w = outfit.weather;
     return (
@@ -860,7 +904,7 @@ export default function Home() {
         {showDate && outfit.date && (
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
             <div style={{ fontSize:13, fontWeight:700, color:S.accent }}>
-              {new Date(outfit.date).toLocaleDateString('ko-KR',{ month:'long', day:'numeric', weekday:'short' })}
+              {(d=>{const [y,m,dy]=d.split('-').map(Number);return new Date(y,m-1,dy).toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});})(outfit.date)}
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:S.sub, flexWrap:'wrap', justifyContent:'flex-end' }}>
                 {w ? (
@@ -899,6 +943,15 @@ export default function Home() {
                   <div style={{ width:'100%', height:140, borderRadius:S.radiusSm, background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:4, overflow:'hidden', border:c?`1px solid ${S.border}`:'none', position:'relative' }}>
                     {c?.image ? <img src={c.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : <span style={{ fontSize:20 }}>{CAT_EMOJI[c?.category||l.label]||'👔'}</span>}
                     {c && <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0)', transition:'background 0.15s' }} onMouseEnter={e=>e.target.style.background='rgba(0,0,0,0.08)'} onMouseLeave={e=>e.target.style.background='rgba(0,0,0,0)'}/>}
+                    {/* 개별 재추천 버튼 - 확정되지 않은 날에만 */}
+                    {showDate && !confirmedDates.has(outfit.date) && (
+                      <button
+                        onClick={e=>{e.stopPropagation(); regenItem(outfit, l.slot);}}
+                        disabled={regenLoading[outfit.date+'_'+l.slot]}
+                        style={{ position:'absolute', top:3, right:3, width:18, height:18, borderRadius:4, background:'rgba(0,0,0,0.55)', color:'#fff', border:'none', fontSize:9, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2 }}
+                        title="이 아이템만 재추천"
+                      >{regenLoading[outfit.date+'_'+l.slot] ? '…' : '↺'}</button>
+                    )}
                   </div>
                   <div style={{ fontSize:9, color:S.hint }}>{l.label}</div>
                   <div style={{ fontSize:10, fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{l.name}</div>
@@ -1003,7 +1056,7 @@ export default function Home() {
               </div>
               {weekPlan.slice(weekOffset*7, weekOffset*7+7).map((d,idx)=>{
                 const i = weekOffset*7+idx;
-                const dateObj = new Date(d.date);
+                const [wy,wm,wdy] = d.date.split('-').map(Number); const dateObj = new Date(wy,wm-1,wdy);
                 const dateStr = dateObj.toLocaleDateString('ko-KR',{ month:'numeric', day:'numeric', weekday:'short' });
                 const isWeekend = dateObj.getDay()===0||dateObj.getDay()===6;
                 return (
