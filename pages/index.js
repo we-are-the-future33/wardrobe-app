@@ -163,6 +163,7 @@ export default function Home() {
   // UI
   const [toast, setToast]         = useState('');
   const [confirm, setConfirm]     = useState(null); // { message, onConfirm }
+  const [restoreProgress, setRestoreProgress] = useState(null); // { done, total, log }
   const [mounted, setMounted]     = useState(false);
 
   // ── 초기화 (클라이언트 전용) ─────────────────────
@@ -628,6 +629,37 @@ export default function Home() {
 
   // ── 설정 ─────────────────────────────────────────
   const saveSettings = () => { LS.set('settings', settings); showToast('저장됨'); };
+  const restoreAllImages = async () => {
+    const targets = clothes.filter(c => c.source_url && !ImageStore.get(c.id));
+    if (targets.length === 0) return showToast('복구할 이미지가 없어요 (이미 모두 있거나 URL 없음)');
+    setRestoreProgress({ done:0, total:targets.length, log:'' });
+    let done = 0;
+    for (const c of targets) {
+      try {
+        const r1 = await fetch('/api/parse-url', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url:c.source_url }) });
+        const p = await r1.json();
+        if (!p.image_url) throw new Error('이미지 URL 없음');
+        const r2 = await fetch('/api/proxy-image', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url:p.image_url }) });
+        const d = await r2.json();
+        if (!d.base64) throw new Error('변환 실패');
+        const b64 = `data:${d.type||'image/jpeg'};base64,${d.base64}`;
+        ImageStore.set(c.id, b64);
+        done++;
+        setRestoreProgress(p => ({ ...p, done, log: `✅ ${c.name}` }));
+        // clothes state도 업데이트
+        setClothes(prev => prev.map(x => x.id===c.id ? {...x, image:b64, hasImage:true} : x));
+        // LS도 업데이트
+        const stored = JSON.parse(localStorage.getItem('clothes')||'[]');
+        const updated = stored.map(x => x.id===c.id ? {...x, hasImage:true} : x);
+        localStorage.setItem('clothes', JSON.stringify(updated));
+      } catch(e) {
+        done++;
+        setRestoreProgress(p => ({ ...p, done, log: `❌ ${c.name}: ${e.message}` }));
+      }
+    }
+    setRestoreProgress(p => ({ ...p, log: `완료! ${targets.length}개 중 성공: ${done}개` }));
+  };
+
   const addSchedule  = () => { if(schedules.length>=6)return showToast('최대 6개'); setSchedules(s=>[...s,{ city:'', time:'18:00', env:'outdoor', place:'실외 이동', isHome:false }]); };
   const updateSchedule = (i, key, val) => setSchedules(s=>s.map((x,idx)=>idx===i?{...x,[key]:val}:x));
 
@@ -919,10 +951,25 @@ export default function Home() {
           </div>
           <div style={card}>
             <div style={{ fontSize:12, fontWeight:500, color:S.sub, marginBottom:12 }}>데이터</div>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingBottom:12, borderBottom:`1px solid ${S.border}`, marginBottom:12 }}>
               <div style={{ fontSize:14 }}>등록된 옷<span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>{clothes.length}개</span></div>
               <button onClick={()=>showConfirm('모든 옷 데이터를 초기화할까요?', ()=>{ clothes.forEach(c=>ImageStore.del(c.id)); setClothes([]); LS.set('clothes',[]); setConfirm(null); })} style={{ ...btn({ padding:'6px 12px', fontSize:12, color:S.danger, borderColor:S.danger }) }}>초기화</button>
             </div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div style={{ fontSize:14 }}>이미지 복구
+                <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>
+                  source_url 있는 옷 {clothes.filter(c=>c.source_url&&!ImageStore.get(c.id)).length}개 복구 가능
+                </span>
+              </div>
+              <button onClick={restoreAllImages} disabled={!!restoreProgress && restoreProgress.done < restoreProgress.total} style={{ ...btnPrimary({ padding:'6px 12px', fontSize:12 }), opacity: restoreProgress && restoreProgress.done < restoreProgress.total ? 0.6 : 1 }}>
+                {restoreProgress && restoreProgress.done < restoreProgress.total ? `복구 중 ${restoreProgress.done}/${restoreProgress.total}` : '이미지 일괄 복구'}
+              </button>
+            </div>
+            {restoreProgress && (
+              <div style={{ marginTop:10, padding:'8px 12px', background:S.bg, borderRadius:8, fontSize:12, color:S.sub }}>
+                {restoreProgress.log}
+              </div>
+            )}
           </div>
         </div>
       )}
