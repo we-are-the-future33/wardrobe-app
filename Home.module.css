@@ -1,15 +1,15 @@
 .nav {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 20px; background: var(--surface);
+  padding: 12px 16px; background: var(--surface);
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 100;
 }
-.navTitle { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
-.navTabs { display: flex; gap: 4px; }
+.navTitle { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; flex-shrink: 0; }
+.navTabs { display: flex; gap: 3px; flex-shrink: 0; }
 .navTab {
-  padding: 6px 14px; border-radius: 99px; font-size: 13px; font-weight: 500;
+  padding: 6px 12px; border-radius: 99px; font-size: 13px; font-weight: 500;
   border: 1px solid var(--border); background: transparent; color: var(--text-sub);
-  cursor: pointer; transition: all 0.15s; font-family: inherit;
+  cursor: pointer; transition: all 0.15s; font-family: inherit; white-space: nowrap;
 }
 .navTab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
