@@ -44,6 +44,8 @@ export default function Home() {
   const [shopUrl, setShopUrl] = useState('');
   const [urlLoading, setUrlLoading] = useState(false);
   const [fetchedImage, setFetchedImage] = useState('');
+  const [removingBg, setRemovingBg] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [clothForm, setClothForm] = useState({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
   const [settings, setSettings] = useState({ home_city:'', cold_sensitivity:0 });
   const [toast, setToast] = useState('');
@@ -107,6 +109,40 @@ export default function Home() {
     finally { setLoading(false); }
   };
 
+  const removeBackground = async (imageUrl) => {
+    setRemovingBg(true);
+    try {
+      // 이미지를 fetch해서 blob으로 변환
+      let blob;
+      if (imageUrl.startsWith('data:')) {
+        const res = await fetch(imageUrl);
+        blob = await res.blob();
+      } else {
+        // CORS 문제 있을 수 있어서 프록시 통해서 가져오기
+        const res = await fetch(`/api/proxy-image?url=${encodeURIComponent(imageUrl)}`);
+        blob = await res.blob();
+      }
+      // background-removal 동적 로딩
+      const { removeBackground: removeBg } = await import('@imgly/background-removal');
+      const resultBlob = await removeBg(blob, {
+        publicPath: 'https://unpkg.com/@imgly/background-removal@1.4.5/dist/',
+        progress: () => {},
+      });
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const b64 = e.target.result.split(',')[1];
+        setImageBase64(b64);
+        setImageType('image/png');
+        setFetchedImage(e.target.result);
+      };
+      reader.readAsDataURL(resultBlob);
+    } catch(e) {
+      showToast('누끼 처리 실패: ' + e.message);
+    } finally {
+      setRemovingBg(false);
+    }
+  };
+
   const fetchFromUrl = async () => {
     if (!shopUrl) return showToast('URL을 입력해주세요');
     setUrlLoading(true); setResultTags(null); setFetchedImage('');
@@ -147,17 +183,33 @@ export default function Home() {
     if (!clothForm.name) return showToast('옷 이름을 입력해주세요');
     if (!clothForm.temp_min||!clothForm.temp_max) return showToast('온도 범위를 입력해주세요');
     const image = imageBase64 ? `data:${imageType};base64,${imageBase64}` : (fetchedImage||null);
-    const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image, added_at:new Date().toISOString() };
-    const updated = [...clothes, newCloth];
-    setClothes(updated); LS.set('clothes', updated);
-    setModalOpen(false); resetModal();
-    showToast(`"${clothForm.name}" 추가됨`);
+    if (editingId) {
+      const updated = clothes.map(c => c.id===editingId ? { ...c, ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image:image||c.image } : c);
+      setClothes(updated); LS.set('clothes', updated);
+      setModalOpen(false); resetModal();
+      showToast(`"${clothForm.name}" 수정됨`);
+    } else {
+      const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image, added_at:new Date().toISOString() };
+      const updated = [...clothes, newCloth];
+      setClothes(updated); LS.set('clothes', updated);
+      setModalOpen(false); resetModal();
+      showToast(`"${clothForm.name}" 추가됨`);
+    }
   };
 
   const resetModal = () => {
     setClothForm({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', purchase_date: new Date().toISOString().split('T')[0], preference:3 });
     setShopUrl(''); setFetchedImage(''); setImageBase64(null); setImageType(null);
-    setResultTags(null); setAddTab('url');
+    setResultTags(null); setAddTab('url'); setEditingId(null);
+  };
+
+  const openEditModal = (c) => {
+    setEditingId(c.id);
+    setClothForm({ name:c.name, category:c.category, temp_min:String(c.temp_min), temp_max:String(c.temp_max), style:c.style||'', color:c.color||'', purchase_date:c.purchase_date||new Date().toISOString().split('T')[0], preference:c.preference||3 });
+    if (c.image) setFetchedImage(c.image);
+    setImageBase64(null); setImageType(null);
+    setResultTags(null); setAddTab('url'); setShopUrl('');
+    setModalOpen(true);
   };
 
   const deleteCloth = (id) => { if(!confirm('삭제?'))return; const u=clothes.filter(c=>c.id!==id); setClothes(u); LS.set('clothes',u); };
@@ -289,13 +341,15 @@ export default function Home() {
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
               {filtered.map(c=>(
-                <div key={c.id} style={{ background:S.surface, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'10px 8px', textAlign:'center', position:'relative' }}>
-                  <button onClick={()=>deleteCloth(c.id)} style={{ position:'absolute', top:4, right:4, width:18, height:18, borderRadius:'50%', background:'#E24B4A', color:'white', border:'none', fontSize:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+                <div key={c.id} onClick={()=>openEditModal(c)} style={{ background:S.surface, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'10px 8px', textAlign:'center', position:'relative', cursor:'pointer' }}>
+                  <button onClick={e=>{e.stopPropagation();deleteCloth(c.id);}} style={{ position:'absolute', top:4, right:4, width:18, height:18, borderRadius:'50%', background:'#E24B4A', color:'white', border:'none', fontSize:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
                   <div style={{ width:'100%', aspectRatio:1, borderRadius:8, background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:6, overflow:'hidden' }}>
                     {c.image?<img src={c.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>:<span style={{ fontSize:28 }}>{CAT_EMOJI[c.category]||'👔'}</span>}
                   </div>
                   <div style={{ fontSize:11, fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.name}</div>
+                  {c.brand && <div style={{ fontSize:10, color:S.sub, marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.brand}</div>}
                   <div style={{ fontSize:10, color:S.sub, marginTop:1 }}>{c.category} · {c.temp_min}~{c.temp_max}°C</div>
+                  {c.purchase_date && <div style={{ fontSize:10, color:S.hint, marginTop:1 }}>{c.purchase_date.replace(/-/g,'.')}</div>}
                   <div style={{ fontSize:10, color:'#EF9F27', marginTop:1 }}>{'★'.repeat(c.preference||3)}{'☆'.repeat(5-(c.preference||3))}</div>
                 </div>
               ))}
@@ -338,7 +392,7 @@ export default function Home() {
       {mounted && modalOpen && createPortal(
         <div onClick={e=>e.target===e.currentTarget&&setModalOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
           <div style={{ background:'#fff', borderRadius:'20px 20px 0 0', padding:20, width:'100%', maxWidth:480, maxHeight:'85vh', overflowY:'auto' }}>
-            <div style={{ fontSize:16, fontWeight:700, marginBottom:16 }}>옷 추가</div>
+            <div style={{ fontSize:16, fontWeight:700, marginBottom:16 }}>{editingId ? '옷 수정' : '옷 추가'}</div>
             <div style={{ display:'flex', gap:4, marginBottom:14 }}>
               {['url','photo'].map(t=>(
                 <button key={t} onClick={()=>setAddTab(t)} style={{ flex:1, padding:9, borderRadius:S.radiusSm, fontSize:13, fontWeight:500, border:`1px solid ${S.border}`, background:addTab===t?S.accent:S.bg, color:addTab===t?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>
@@ -352,7 +406,29 @@ export default function Home() {
                   <input value={shopUrl} onChange={e=>setShopUrl(e.target.value)} placeholder="무신사, 29CM 등 상품 URL" style={{ flex:1, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'9px 12px', fontSize:13, fontFamily:'inherit', outline:'none' }}/>
                   <button onClick={fetchFromUrl} disabled={urlLoading} style={btnPrimary({ flexShrink:0 })}>{urlLoading?'...':'가져오기'}</button>
                 </div>
-                {fetchedImage && <img src={fetchedImage} style={{ width:80, height:80, objectFit:'cover', borderRadius:8, marginBottom:10 }} alt=""/>}
+                {fetchedImage && (
+                  <div style={{ marginBottom:10 }}>
+                    <img src={fetchedImage} style={{ width:80, height:80, objectFit:'cover', borderRadius:8, display:'block', marginBottom:6 }} alt=""/>
+                    <div style={{ display:'flex', gap:6 }}>
+                      <button onClick={()=>document.getElementById('replaceImg').click()} style={{ padding:'5px 10px', borderRadius:8, fontSize:11, fontWeight:500, border:'1px solid #E8E6E0', background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>
+                        🔄 이미지 교체
+                      </button>
+                      <button onClick={()=>removeBackground(fetchedImage)} disabled={removingBg} style={{ padding:'5px 10px', borderRadius:8, fontSize:11, fontWeight:500, border:'1px solid #85B7EB', background:'#E6F1FB', color:'#0C447C', cursor:'pointer', fontFamily:'inherit' }}>
+                        {removingBg ? '처리 중...' : '✂️ 누끼따기'}
+                      </button>
+                    </div>
+                    <input id="replaceImg" type="file" accept="image/*" style={{ display:'none' }} onChange={e=>{
+                      if(!e.target.files[0]) return;
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        setFetchedImage(ev.target.result);
+                        setImageBase64(ev.target.result.split(',')[1]);
+                        setImageType(e.target.files[0].type);
+                      };
+                      reader.readAsDataURL(e.target.files[0]);
+                    }}/>
+                  </div>
+                )}
               </div>
             )}
             {addTab==='photo' && (
@@ -413,7 +489,7 @@ export default function Home() {
             </div>
             <div style={{ display:'flex', gap:8, marginTop:16 }}>
               <button onClick={()=>setModalOpen(false)} style={btn({ flex:1 })}>취소</button>
-              <button onClick={saveCloth} style={btnPrimary({ flex:1 })}>저장</button>
+              <button onClick={saveCloth} style={btnPrimary({ flex:1 })}>{editingId ? '수정 완료' : '저장'}</button>
             </div>
           </div>
         </div>,
