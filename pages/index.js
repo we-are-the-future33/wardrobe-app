@@ -641,15 +641,17 @@ export default function Home() {
         }).join(', ');
       }).filter(Boolean).join('\n');
       const dayText = weatherDays.map(d => {
-        const dateStr = new Date(d.date).toLocaleDateString('ko-KR',{ month:'long', day:'numeric', weekday:'short' });
-        return `- ${dateStr}: ${d.city} ${d.weather.temp}°C ${d.weather.condition}, ${d.env==='indoor'?d.place:'실외 활동'}, ${d.occasion}`;
+        const dateObj = new Date(d.date);
+        const dateStr = dateObj.toLocaleDateString('ko-KR',{ month:'long', day:'numeric', weekday:'short' });
+        const dow = ['일','월','화','수','목','금','토'][dateObj.getDay()];
+        return `- [날짜:${d.date}] ${dateStr}(${dow}요일): ${d.city} ${d.weather.temp}°C ${d.weather.condition}, ${d.env==='indoor'?d.place:'실외 활동'}, ${d.occasion}`;
       }).join('\n');
       const r = await fetch('/api/claude', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:2000,
-          system:'패션 스타일리스트. 주간 코디를 JSON으로만 반환. 다른 텍스트 없음.',
-          messages:[{ role:'user', content:`일정:\n${dayText}\n\n내 옷장:\n${clothText}\n\nJSON만 응답:{"outfits":[{"date":"YYYY-MM-DD","outer":"null가능","top":"이름","bottom":"null가능","reason":"이유"}],"packing_list":["아이템"]}` }]
+          system:'패션 스타일리스트. 주간 코디를 JSON으로만 반환. 다른 텍스트 없음. 반드시 각 일정의 [날짜:YYYY-MM-DD]를 date 필드에 그대로 사용할 것. reason에는 날짜/요일 언급 금지, 코디 이유만 간결하게.',
+          messages:[{ role:'user', content:`일정:\n${dayText}\n\n내 옷장:\n${clothText}\n\n각 날짜에 맞는 코디 추천. date 필드는 반드시 위 [날짜:YYYY-MM-DD] 값 그대로 사용.\nJSON만 응답:{"outfits":[{"date":"YYYY-MM-DD","outer":"null가능","top":"이름","bottom":"null가능","reason":"코디이유만"}],"packing_list":["아이템"]}` }]
         })
       });
       const data = await r.json();
