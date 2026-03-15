@@ -800,19 +800,20 @@ export default function Home() {
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))', gap:12 }}>
               {filtered.map(c=>(
-                <div key={c.id} onClick={()=>openEditModal(c)} style={{ background:S.surface, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'10px 8px', textAlign:'center', position:'relative', cursor:'pointer', display:'flex', flexDirection:'column', height:'100%' }}>
+                <div key={c.id} onClick={()=>openEditModal(c)} style={{ background:S.surface, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'10px 8px', textAlign:'left', position:'relative', cursor:'pointer', display:'flex', flexDirection:'column', height:'100%' }}>
                   <button onClick={e=>{e.stopPropagation();deleteCloth(c.id);}} style={{ position:'absolute', top:4, right:4, width:18, height:18, borderRadius:'50%', background:S.danger, color:'white', border:'none', fontSize:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1 }}>✕</button>
                   <div style={{ width:'100%', height:140, borderRadius:8, background:S.bg, overflow:'hidden', flexShrink:0, marginBottom:8, display:'flex', alignItems:'center', justifyContent:'center' }}>
                     {c.image ? <img src={c.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : <span style={{ fontSize:28 }}>{CAT_EMOJI[c.category]||'👔'}</span>}
                   </div>
-                  <div style={{ fontSize:11, fontWeight:500, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', lineHeight:1.3, minHeight:28, marginBottom:3 }}>{c.name}</div>
-                  <div style={{ fontSize:10, color:S.sub, marginTop:'auto' }}>
-                    {c.brand && <div style={{ whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginBottom:1 }}>{c.brand}</div>}
-                    {c.price && <div style={{ color:S.accent, fontWeight:500, marginBottom:1 }}>{c.price}</div>}
-                    <div>{c.category}{c.category==='액세서리'?(c.season?' · '+c.season:''):(` · ${c.temp_min}~${c.temp_max}°C`)}</div>
-                    {c.purchase_date && <div style={{ color:S.hint, marginTop:1 }}>{c.purchase_date.replace(/-/g,'.')}</div>}
-                    <div style={{ color:'#EF9F27', marginTop:2 }}>{'★'.repeat(c.preference||3)}{'☆'.repeat(5-(c.preference||3))}</div>
-                    {c.last_worn && <div style={{ color:S.hint, marginTop:1, fontSize:9 }}>최근: {c.last_worn.replace(/-/g,'.')}</div>}
+                  <div style={{ fontSize:11, fontWeight:600, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', lineHeight:1.4, marginBottom:4 }}>{c.name}</div>
+                  <div style={{ fontSize:10, color:S.sub, marginTop:'auto', display:'flex', flexDirection:'column', gap:1 }}>
+                    {c.brand && <div style={{ color:S.sub, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.brand}</div>}
+                    {c.price && <div style={{ color:S.accent, fontWeight:600 }}>{c.price}</div>}
+                    <div style={{ color:S.hint }}>{c.category}{c.category==='액세서리'?(c.season?' · '+c.season:''):(` · ${c.temp_min}~${c.temp_max}°C`)}</div>
+                    {c.purchase_date && <div style={{ color:S.hint }}>구매 {c.purchase_date.replace(/-/g,'.')}</div>}
+                    {c.added_at && <div style={{ color:S.hint, fontSize:9 }}>등록 {new Date(c.added_at).toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(/\. /g,'.').replace(' ',' ')}</div>}
+                    {c.last_worn && <div style={{ color:'#85B7EB', fontSize:9 }}>착용 {c.last_worn.replace(/-/g,'.')}</div>}
+                    <div style={{ color:'#EF9F27', marginTop:1 }}>{'★'.repeat(c.preference||3)}{'☆'.repeat(5-(c.preference||3))}</div>
                   </div>
                 </div>
               ))}
