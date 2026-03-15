@@ -954,7 +954,7 @@ export default function Home() {
                   onClick={()=>{ const fc = findCloth(l.name); if(fc) openEditModal(fc); }}
                   title={c ? '클릭하면 수정' : ''}
                 >
-                  <div style={{ width:'100%', height:140, borderRadius:S.radiusSm, background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:4, overflow:'hidden', border:c?`1px solid ${S.border}`:'none', position:'relative' }}>
+                  <div style={{ width:'100%', height:180, borderRadius:S.radiusSm, background:S.bg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:4, overflow:'hidden', border:c?`1px solid ${S.border}`:'none', position:'relative' }}>
                     {c?.image ? <img src={c.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : <span style={{ fontSize:20 }}>{CAT_EMOJI[c?.category||l.label]||'👔'}</span>}
                     {c && <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0)', transition:'background 0.15s' }} onMouseEnter={e=>e.target.style.background='rgba(0,0,0,0.08)'} onMouseLeave={e=>e.target.style.background='rgba(0,0,0,0)'}/>}
                     {/* 개별 재추천 버튼 - 확정되지 않은 날에만 */}
@@ -1127,7 +1127,7 @@ export default function Home() {
               </div>
             </div>
           )}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))', gap:12 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(380px, 1fr))', gap:16 }}>
             {weekOutfits.map((o,i)=><OutfitCard key={o.date||i} outfit={o} index={i} showDate={true}/>)}
           </div>
 
