@@ -563,11 +563,7 @@ export default function Home() {
                   })}
                 </div>
                 <div style={{ background:S.bg, borderRadius:S.radiusSm, padding:'10px 12px', fontSize:12, color:S.sub, lineHeight:1.6, marginBottom:8 }}>{o.reason}</div>
-                <div style={{ display:'flex', gap:6', flexWrap:'wrap' }}>
-                  {[o.outer,o.top,o.bottom].filter(Boolean).map(name=>(
-                    <button key={name} onClick={()=>markWorn(name)} style={{ padding:'4px 10px', borderRadius:99, fontSize:11, border:'1px solid #E8E6E0', background:'#fff', color:S.sub, cursor:'pointer', fontFamily:'inherit' }}>✓ {name} 입었어요</button>
-                  ))}
-                </div>
+                <div style={{ background:S.bg, borderRadius:S.radiusSm, padding:'8px 10px', fontSize:11, color:S.sub, lineHeight:1.6 }}>{o.reason}</div>
               </div>
             );
           })}
