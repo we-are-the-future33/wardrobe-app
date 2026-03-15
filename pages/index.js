@@ -370,16 +370,8 @@ export default function Home() {
       if (p.error) throw new Error(p.error);
       const item = p.items?.[0] || p;
       // URL 데이터로 현재 item 보강 (주문내역 정보 우선 유지, 빈 것만 채움)
-      // 이미지 URL → 프록시 통해 base64로 변환
-      let imageData = null;
-      if (p.image_url) {
-        try {
-          const imgR = await fetch('/api/proxy-image', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url: p.image_url }) });
-          const imgD = await imgR.json();
-          if (imgD.base64) imageData = `data:${imgD.type||'image/jpeg'};base64,${imgD.base64}`;
-          else imageData = p.image_url; // 프록시 실패시 URL 그대로
-        } catch { imageData = p.image_url; }
-      }
+      // image_url 직접 사용 (무신사 CDN은 만료 없음)
+      const imageData = p.image_url || null;
       setOrderItems(o => o.map(x => {
         if (x.id !== itemId) return x;
         return {
@@ -643,11 +635,9 @@ export default function Home() {
         const r1 = await fetch('/api/parse-url', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url:c.source_url }) });
         const p = await r1.json();
         if (!p.image_url) throw new Error('이미지 URL 없음');
-        const r2 = await fetch('/api/proxy-image', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url:p.image_url }) });
-        const d = await r2.json();
-        if (!d.base64) throw new Error('변환 실패');
-        const b64 = `data:${d.type||'image/jpeg'};base64,${d.base64}`;
-        ImageStore.set(c.id, b64);
+        // image_url 직접 저장 (무신사 CDN은 만료 없음)
+        const b64 = p.image_url;
+        await ImageStore.set(c.id, b64);
         done++;
         setRestoreProgress(p => ({ ...p, done, log: `✅ ${c.name}` }));
         // clothes state도 업데이트
