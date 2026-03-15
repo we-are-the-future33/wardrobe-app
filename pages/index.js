@@ -653,6 +653,57 @@ export default function Home() {
             </div>
             {addTab==='url' && (
               <div>
+                <div style={{ display:'flex', gap:4, marginBottom:10 }}>
+                  <button onClick={()=>setBatchMode(false)} style={{ flex:1, padding:'7px 0', borderRadius:8, fontSize:12, fontWeight:500, border:`1px solid ${!batchMode?S.accent:S.border}`, background:!batchMode?S.accent:S.surface, color:!batchMode?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>단일 URL</button>
+                  <button onClick={()=>setBatchMode(true)} style={{ flex:1, padding:'7px 0', borderRadius:8, fontSize:12, fontWeight:500, border:`1px solid ${batchMode?S.accent:S.border}`, background:batchMode?S.accent:S.surface, color:batchMode?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>여러 URL</button>
+                </div>
+                {batchMode ? (
+                  <div>
+                    <textarea value={batchUrls} onChange={e=>setBatchUrls(e.target.value)} placeholder={'URL을 한 줄에 하나씩
+https://www.musinsa.com/products/123
+https://www.musinsa.com/products/456'} style={{ width:'100%', height:90, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'9px 12px', fontSize:12, fontFamily:'inherit', outline:'none', resize:'none', boxSizing:'border-box', marginBottom:8 }}/>
+                    <button onClick={fetchBatch} disabled={batchLoading} style={btnPrimary({ width:'100%' })}>{batchLoading?'파싱 중...':'한꺼번에 가져오기'}</button>
+                    {batchItems.length > 0 && (
+                      <div style={{ marginTop:12 }}>
+                        <div style={{ fontSize:12, color:S.sub, marginBottom:8 }}>{batchItems.length}개 파싱됨 — 확인 후 저장</div>
+                        {batchItems.map((item,idx)=>(
+                          <div key={item.id} style={{ border:`1px solid ${item.checked?S.accent:S.border}`, borderRadius:10, padding:'10px 12px', marginBottom:8 }}>
+                            <div style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
+                              {item.image && <img src={item.image} style={{ width:52, height:52, objectFit:'cover', borderRadius:8, flexShrink:0 }} alt=""/>}
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <input value={item.name} onChange={e=>setBatchItems(batchItems.map((b,i)=>i===idx?{...b,name:e.target.value}:b))} style={{ width:'100%', border:`1px solid ${S.border}`, borderRadius:6, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', marginBottom:4, boxSizing:'border-box' }} placeholder="상품명"/>
+                                <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+                                  <input value={item.brand} onChange={e=>setBatchItems(batchItems.map((b,i)=>i===idx?{...b,brand:e.target.value}:b))} style={{ width:90, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="브랜드"/>
+                                  <select value={item.category} onChange={e=>setBatchItems(batchItems.map((b,i)=>i===idx?{...b,category:e.target.value}:b))} style={{ border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 6px', fontSize:11, fontFamily:'inherit', outline:'none' }}>
+                                    {['아우터','상의','하의','원피스','신발','액세서리'].map(c=><option key={c} value={c}>{c}</option>)}
+                                  </select>
+                                  {item.colors && item.colors.length > 1 ? (
+                                    <select value={item.color} onChange={e=>setBatchItems(batchItems.map((b,i)=>i===idx?{...b,color:e.target.value}:b))} style={{ border:`1.5px solid #85B7EB`, borderRadius:6, padding:'4px 6px', fontSize:11, fontFamily:'inherit', outline:'none', background:'#E6F1FB', color:'#0C447C' }}>
+                                      <option value="">색상 선택</option>
+                                      {item.colors.map(c=><option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                  ) : (
+                                    <input value={item.color} onChange={e=>setBatchItems(batchItems.map((b,i)=>i===idx?{...b,color:e.target.value}:b))} style={{ width:70, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="색상"/>
+                                  )}
+                                  <input value={item.price} onChange={e=>setBatchItems(batchItems.map((b,i)=>i===idx?{...b,price:e.target.value}:b))} style={{ width:80, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="가격"/>
+                                </div>
+                                <div style={{ display:'flex', gap:4, marginTop:4, alignItems:'center' }}>
+                                  <input value={item.temp_min} onChange={e=>setBatchItems(batchItems.map((b,i)=>i===idx?{...b,temp_min:e.target.value}:b))} style={{ width:46, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="최저"/>
+                                  <span style={{ fontSize:11, color:S.sub }}>~</span>
+                                  <input value={item.temp_max} onChange={e=>setBatchItems(batchItems.map((b,i)=>i===idx?{...b,temp_max:e.target.value}:b))} style={{ width:46, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="최고"/>
+                                  <span style={{ fontSize:11, color:S.sub }}>°C</span>
+                                </div>
+                              </div>
+                              <button onClick={()=>setBatchItems(batchItems.map((b,i)=>i===idx?{...b,checked:!b.checked}:b))} style={{ width:24, height:24, borderRadius:6, border:`1.5px solid ${item.checked?S.accent:S.border}`, background:item.checked?S.accent:'#fff', color:'#fff', fontSize:14, cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>{item.checked?'✓':''}</button>
+                            </div>
+                          </div>
+                        ))}
+                        <button onClick={saveBatchItems} style={btnPrimary({ width:'100%', marginTop:4 })}>선택 항목 저장 ({batchItems.filter(i=>i.checked).length}개)</button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                <div>
                 <div style={{ display:'flex', gap:8, marginBottom:10 }}>
                   <input value={shopUrl} onChange={e=>setShopUrl(e.target.value)} placeholder="무신사, 29CM 등 상품 URL" style={{ flex:1, border:`1px solid ${S.border}`, borderRadius:S.radiusSm, padding:'9px 12px', fontSize:13, fontFamily:'inherit', outline:'none' }}/>
                   <button onClick={fetchFromUrl} disabled={urlLoading} style={btnPrimary({ flexShrink:0 })}>{urlLoading?'...':'가져오기'}</button>
@@ -679,6 +730,8 @@ export default function Home() {
                       reader.readAsDataURL(e.target.files[0]);
                     }}/>
                   </div>
+                )}
+              </div>
                 )}
               </div>
             )}
