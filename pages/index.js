@@ -1000,21 +1000,6 @@ export default function Home() {
                       <div key={item.id} style={{ border:`1px solid ${item.checked?S.accent:S.border}`, borderRadius:10, padding:'10px 12px', marginBottom:8 }}>
                         <div style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
                           <div style={{ flex:1, minWidth:0 }}>
-                            {/* URL 보강 - 카드 상단 */}
-                            <div style={{ display:'flex', gap:6, alignItems:'center', marginBottom:6, background:'#F0F7FF', borderRadius:6, padding:'5px 8px' }}>
-                              {item.image && <img src={item.image} style={{ width:28, height:28, objectFit:'cover', borderRadius:4, flexShrink:0 }} alt=""/>}
-                              <input
-                                value={orderUrlMap[item.id]||''}
-                                onChange={e=>setOrderUrlMap(m=>({...m,[item.id]:e.target.value}))}
-                                placeholder="상품 URL (이미지·소재 자동 보강)"
-                                style={{ flex:1, border:'none', borderRadius:4, padding:'3px 6px', fontSize:11, fontFamily:'inherit', outline:'none', background:'transparent', color:S.sub, minWidth:0 }}
-                              />
-                              <button
-                                onClick={()=>enrichItemWithUrl(item.id, orderUrlMap[item.id])}
-                                disabled={orderUrlLoading[item.id] || !orderUrlMap[item.id]}
-                                style={{ padding:'3px 8px', borderRadius:4, fontSize:11, fontWeight:600, border:`1px solid #85B7EB`, background:orderUrlMap[item.id]?'#0C447C':'#E6F1FB', color:orderUrlMap[item.id]?'#fff':'#B5D4F4', cursor:'pointer', fontFamily:'inherit', flexShrink:0, whiteSpace:'nowrap' }}
-                              >{orderUrlLoading[item.id]?'분석중..':'🔗 보강'}</button>
-                            </div>
                             <input value={item.name} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,name:e.target.value}:b))} style={{ width:'100%', border:`1px solid ${S.border}`, borderRadius:6, padding:'5px 8px', fontSize:12, fontFamily:'inherit', outline:'none', marginBottom:4, boxSizing:'border-box' }} placeholder="상품명"/>
                             <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
                               <input value={item.brand} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,brand:e.target.value}:b))} style={{ width:90, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="브랜드"/>
@@ -1031,10 +1016,35 @@ export default function Home() {
                               <input value={item.temp_max} onChange={e=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,temp_max:e.target.value}:b))} style={{ width:40, border:`1px solid ${S.border}`, borderRadius:6, padding:'4px 7px', fontSize:11, fontFamily:'inherit', outline:'none' }} placeholder="최고"/>
                               <span style={{ fontSize:11, color:S.sub }}>°C</span>
                             </div>
+                            {/* 보강된 스타일/소재 태그 표시 */}
+                            {(item.style || item.material) && (
+                              <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:6 }}>
+                                {item.style && item.style.split(',').map(s=>s.trim()).filter(Boolean).map(s=>(
+                                  <span key={s} style={{ fontSize:10, padding:'2px 7px', borderRadius:99, background:'#E6F1FB', color:'#0C447C' }}>{s}</span>
+                                ))}
+                                {item.material && item.material.split(',').map(s=>s.trim()).filter(Boolean).map(s=>(
+                                  <span key={s} style={{ fontSize:10, padding:'2px 7px', borderRadius:99, background:'#FAEEDA', color:'#633806' }}>{s}</span>
+                                ))}
+                                {item.image && <img src={item.image} style={{ width:24, height:24, objectFit:'cover', borderRadius:4 }} alt=""/>}
+                              </div>
+                            )}
                           </div>
                           <button onClick={()=>setOrderItems(o=>o.map((b,i)=>i===idx?{...b,checked:!b.checked}:b))} style={{ width:24, height:24, borderRadius:6, border:`1.5px solid ${item.checked?S.accent:S.border}`, background:item.checked?S.accent:'#fff', color:'#fff', fontSize:14, cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>{item.checked?'✓':''}</button>
                         </div>
-
+                        {/* URL 보강 - 카드 하단 */}
+                        <div style={{ display:'flex', gap:6, alignItems:'center', marginTop:8, paddingTop:8, borderTop:`1px solid ${S.border}` }}>
+                          <input
+                            value={orderUrlMap[item.id]||''}
+                            onChange={e=>setOrderUrlMap(m=>({...m,[item.id]:e.target.value}))}
+                            placeholder="상품 URL 입력 → 이미지·스타일·소재 자동 보강"
+                            style={{ flex:1, border:`1px solid ${S.border}`, borderRadius:6, padding:'5px 8px', fontSize:11, fontFamily:'inherit', outline:'none', color:S.text, minWidth:0 }}
+                          />
+                          <button
+                            onClick={()=>enrichItemWithUrl(item.id, orderUrlMap[item.id])}
+                            disabled={orderUrlLoading[item.id] || !orderUrlMap[item.id]}
+                            style={{ padding:'5px 10px', borderRadius:6, fontSize:11, fontWeight:600, border:`1px solid #85B7EB`, background:orderUrlMap[item.id]?'#0C447C':'#E6F1FB', color:orderUrlMap[item.id]?'#fff':'#B5D4F4', cursor:'pointer', fontFamily:'inherit', flexShrink:0, whiteSpace:'nowrap', opacity:!orderUrlMap[item.id]?0.5:1 }}
+                          >{orderUrlLoading[item.id]?'분석중..':'🔗 보강'}</button>
+                        </div>
                       </div>
                     ))}
                     <button onClick={saveOrderItems} style={btnPrimary({ width:'100%', marginTop:4 })}>선택 항목 저장 ({orderItems.filter(i=>i.checked).length}개)</button>
