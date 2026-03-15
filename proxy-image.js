@@ -1,16 +1,28 @@
 export default async function handler(req, res) {
-  const { url } = req.query;
-  if (!url) return res.status(400).end();
+  if (req.method !== 'POST') return res.status(405).end();
+
+  const { url } = req.body;
+  if (!url || !url.startsWith('http')) return res.status(400).json({ error: 'Invalid URL' });
+
   try {
-    const r = await fetch(decodeURIComponent(url), {
-      headers: { 'Referer': 'https://www.musinsa.com' }
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Referer': 'https://www.musinsa.com/',
+        'Accept': 'image/*,*/*',
+      },
     });
-    const contentType = r.headers.get('content-type') || 'image/jpeg';
-    const buffer = await r.arrayBuffer();
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.send(Buffer.from(buffer));
-  } catch(e) {
-    res.status(500).end();
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    if (!contentType.startsWith('image/')) throw new Error('Not an image');
+
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+    res.status(200).json({ base64, type: contentType });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 }
