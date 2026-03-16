@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { auth, signInWithGoogle, signOutUser, loadUserData, updateUserField } from '../lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { createPortal } from 'react-dom';
 import Head from 'next/head';
 
@@ -106,6 +108,11 @@ function buildWeekPlan() {
 
 // ── 메인 컴포넌트 ─────────────────────────────────
 export default function Home() {
+  // 인증
+  const [user, setUser] = useState(null); // Firebase 유저
+  const [authLoading, setAuthLoading] = useState(true);
+  const syncTimer = useRef(null);
+
   // 탭
   const [tab, setTab] = useState('recommend');
 
@@ -113,7 +120,7 @@ export default function Home() {
   const [clothes, setClothes] = useState([]);
   const [catFilter, setCatFilter] = useState('전체');
   const [selectMode, setSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [selectedIds, setSelectedIds] = useState(new Set()); // Set은 useEffect 이후에만 사용
 
   // 일정/추천
   const [schedules, setSchedules] = useState([
@@ -177,6 +184,39 @@ export default function Home() {
   // ── 초기화 (클라이언트 전용) ─────────────────────
   useEffect(() => {
     setMounted(true);
+    // Firebase 인증 상태 감지
+    // 3초 안에 콜백 안 오면 강제로 authLoading 해제 (Firebase 초기화 실패 대비)
+    const authTimeout = setTimeout(() => setAuthLoading(false), 3000);
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        clearTimeout(authTimeout);
+        setUser(firebaseUser);
+        setAuthLoading(false);
+      if (firebaseUser) {
+        // 로그인 시 Firestore에서 데이터 로드
+        const data = await loadUserData(firebaseUser.uid);
+        if (data) {
+          if (data.settings) setSettings(s => ({ ...s, ...data.settings }));
+          if (data.weekOutfits?.length) setWeekOutfits(data.weekOutfits);
+          if (data.confirmedDates?.length) setConfirmedDates(new Set(data.confirmedDates));
+          if (data.confirmedOutfits?.length) {
+            const saved = data.confirmedOutfits;
+            setWeekOutfits(prev => {
+              const dateSet = new Set(prev.map(o=>o.date));
+              const toAdd = saved.filter(o=>!dateSet.has(o.date));
+              return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+            });
+          }
+          if (data.packingList?.length) setPackingList(data.packingList);
+        }
+      }
+      });
+    } catch(e) {
+      clearTimeout(authTimeout);
+      setAuthLoading(false);
+      console.error('Firebase Auth 초기화 실패:', e);
+    }
     // clothes는 아래 mounted useEffect에서 이미지 포함해서 로드
     setSettings(LS.get('settings', { home_city:'', cold_sensitivity:0, layering:'auto', rewear_days:2, rewear_outer:1, rewear_top:2, rewear_bottom:3, exclude_rating:1, outer_temp:15, no_repeat_week:false }));
     setWeekPlan(buildWeekPlan());
@@ -220,10 +260,20 @@ export default function Home() {
     if (savedPackingList.length > 0) setPackingList(savedPackingList);
     const savedConfirmed = LS.get('confirmedDates', []);
     if (savedConfirmed.length > 0) setConfirmedDates(new Set(savedConfirmed));
+    return () => { clearTimeout(authTimeout); unsubscribe(); };
   }, []);
 
   // ── 헬퍼 ─────────────────────────────────────────
   const showToast = useCallback((msg) => { setToast(msg); setTimeout(()=>setToast(''), 2500); }, []);
+
+  // Firestore에 특정 필드를 debounce 저장
+  const syncToFirestore = useCallback((field, value) => {
+    if (!auth.currentUser) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => {
+      updateUserField(auth.currentUser.uid, field, value);
+    }, 1500);
+  }, []);
 
   const showConfirm = (message, onConfirm) => setConfirm({ message, onConfirm });
 
@@ -239,6 +289,10 @@ export default function Home() {
       return { ...rest, hasImage: false };
     }));
     LS.set('clothes', toStore);
+    // Firestore 동기화 (이미지 제외, hasImage 플래그만)
+    if (auth.currentUser) {
+      updateUserField(auth.currentUser.uid, 'clothes', toStore);
+    }
   }, []);
 
   useEffect(() => {
@@ -742,6 +796,7 @@ export default function Home() {
       ].sort((a,b)=>a.date.localeCompare(b.date));
       setWeekOutfits(finalOutfits);
       LS.set('weekOutfits', finalOutfits);
+      if (auth.currentUser) updateUserField(auth.currentUser.uid, 'weekOutfits', finalOutfits);
       const pl = parsed.packing_list || [];
       setPackingList(pl);
       LS.set('packingList', pl);
@@ -750,7 +805,11 @@ export default function Home() {
   };
 
   // ── 설정 ─────────────────────────────────────────
-  const saveSettings = () => { LS.set('settings', settings); showToast('저장됨'); };
+  const saveSettings = () => {
+    LS.set('settings', settings);
+    if (auth.currentUser) updateUserField(auth.currentUser.uid, 'settings', settings);
+    showToast('저장됨');
+  };
   const restoreAllImages = async () => {
     const targets = clothes.filter(c => c.source_url && !ImageStore.get(c.id));
     if (targets.length === 0) return showToast('복구할 이미지가 없어요 (이미 모두 있거나 URL 없음)');
@@ -845,6 +904,11 @@ export default function Home() {
         }
       }
       LS.set('confirmedDates', [...next]);
+      if (auth.currentUser) {
+        updateUserField(auth.currentUser.uid, 'confirmedDates', [...next]);
+        const co = LS.get('confirmedOutfits', []);
+        updateUserField(auth.currentUser.uid, 'confirmedOutfits', co);
+      }
       return next;
     });
   };
@@ -1062,12 +1126,15 @@ export default function Home() {
       {/* 네비 */}
       <nav style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 20px', background:S.surface, borderBottom:`1px solid ${S.border}`, position:'sticky', top:0, zIndex:100 }}>
         <div style={{ fontSize:15, fontWeight:700, letterSpacing:'-0.02em' }}>오늘 뭐 입지</div>
-        <div style={{ display:'flex', gap:4 }}>
+        <div style={{ display:'flex', gap:4, alignItems:'center' }}>
           {['recommend','closet','settings'].map(t=>(
             <button key={t} style={tabStyle(t)} onClick={()=>setTab(t)}>
               {t==='recommend'?'✨ 추천':t==='closet'?'👔 옷장':'⚙️ 설정'}
             </button>
           ))}
+          {!authLoading && user && (
+            <img src={user.photoURL} alt="" onClick={()=>setTab('settings')} title="계정 설정" style={{ width:28, height:28, borderRadius:'50%', border:`1px solid ${S.border}`, marginLeft:4, cursor:'pointer', flexShrink:0 }}/>
+          )}
         </div>
       </nav>
 
@@ -1291,6 +1358,31 @@ export default function Home() {
       {tab==='settings' && (
         <div style={{ padding:'20px 32px', maxWidth:1200, margin:'0 auto' }}>
           <div style={{ fontSize:18, fontWeight:700, marginBottom:16 }}>설정</div>
+
+          {/* Google 로그인 카드 */}
+          <div style={card}>
+            <div style={{ fontSize:12, fontWeight:500, color:S.sub, marginBottom:12 }}>계정 연동</div>
+            {user ? (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <img src={user.photoURL} alt="" style={{ width:36, height:36, borderRadius:'50%', border:`1px solid ${S.border}` }}/>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:500 }}>{user.displayName}</div>
+                    <div style={{ fontSize:11, color:S.sub }}>{user.email}</div>
+                  </div>
+                </div>
+                <button onClick={signOutUser} style={btn({ fontSize:12 })}>로그아웃</button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize:13, color:S.sub, marginBottom:12, lineHeight:1.6 }}>Google 로그인하면 옷장 데이터가 클라우드에 저장되어 여러 기기에서 사용할 수 있어요.</div>
+                <button onClick={signInWithGoogle} style={btnPrimary({ width:'100%', gap:8 })}>
+                  <span>🔗</span> Google로 로그인
+                </button>
+              </div>
+            )}
+          </div>
+
           <div style={card}>
             <div style={{ fontSize:12, fontWeight:500, color:S.sub, marginBottom:12 }}>내 정보</div>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', borderBottom:`1px solid ${S.border}` }}>
