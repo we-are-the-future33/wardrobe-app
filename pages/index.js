@@ -343,6 +343,7 @@ export default function Home() {
 
   // ── 코디 추천 ─────────────────────────────────────
   const getRecommendation = async () => {
+    if (!user) return showToast('로그인 후 이용해주세요');
     if (clothes.length === 0) return showToast('먼저 옷을 등록해주세요');
     const homeCity = settings.home_city;
     if (!homeCity) return showToast('설정에서 집 지역을 입력해주세요');
@@ -638,6 +639,7 @@ export default function Home() {
 
   // ── 옷 저장 ───────────────────────────────────────
   const saveCloth = () => {
+    if (!user) return showToast('로그인 후 이용해주세요');
     if (!clothForm.name) return showToast('옷 이름을 입력해주세요');
     if (!clothForm.temp_min||!clothForm.temp_max) return showToast('온도 범위를 입력해주세요');
     const image = imageBase64 ? `data:${imageType};base64,${imageBase64}` : (fetchedImage||null);
@@ -710,6 +712,7 @@ export default function Home() {
 
   // ── 주간 추천 ─────────────────────────────────────
   const getWeekRecommendation = async () => {
+    if (!user) return showToast('로그인 후 이용해주세요');
     const homeCity = settings.home_city;
     if (!homeCity) return showToast('설정에서 집 지역을 입력해주세요');
     if (clothes.length===0) return showToast('먼저 옷을 등록해주세요');
@@ -806,6 +809,7 @@ export default function Home() {
 
   // ── 설정 ─────────────────────────────────────────
   const saveSettings = () => {
+    if (!user) return showToast('로그인 후 이용해주세요');
     LS.set('settings', settings);
     if (auth.currentUser) updateUserField(auth.currentUser.uid, 'settings', settings);
     showToast('저장됨');
@@ -1124,23 +1128,23 @@ export default function Home() {
       <style>{`* { box-sizing:border-box; margin:0; padding:0; } body { font-family:'Noto Sans KR',-apple-system,sans-serif; background:${S.bg}; color:${S.text}; } @keyframes spin { to { transform:rotate(360deg); } }`}</style>
 
       {/* 네비 */}
-      <nav style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 20px', background:S.surface, borderBottom:`1px solid ${S.border}`, position:'sticky', top:0, zIndex:100 }}>
-        <div style={{ fontSize:15, fontWeight:700, letterSpacing:'-0.02em' }}>오늘 뭐 입지</div>
-        <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+      <nav style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:S.surface, borderBottom:`1px solid ${S.border}`, position:'sticky', top:0, zIndex:100 }}>
+        <div style={{ fontSize:14, fontWeight:700, letterSpacing:'-0.02em', whiteSpace:'nowrap', flexShrink:0 }}>오늘 뭐 입지</div>
+        <div style={{ display:'flex', gap:3, alignItems:'center', flexShrink:0 }}>
           {['recommend','closet','settings'].map(t=>(
-            <button key={t} style={tabStyle(t)} onClick={()=>setTab(t)}>
+            <button key={t} style={{ padding:'6px 10px', borderRadius:99, fontSize:12, fontWeight:600, border:`1px solid ${tab===t?S.accent:S.border}`, background:tab===t?S.accent:S.surface, color:tab===t?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }} onClick={()=>setTab(t)}>
               {t==='recommend'?'✨ 추천':t==='closet'?'👔 옷장':'⚙️ 설정'}
             </button>
           ))}
           {!authLoading && user && (
-            <img src={user.photoURL} alt="" onClick={()=>setTab('settings')} title="계정 설정" style={{ width:28, height:28, borderRadius:'50%', border:`1px solid ${S.border}`, marginLeft:4, cursor:'pointer', flexShrink:0 }}/>
+            <img src={user.photoURL} alt="" onClick={()=>setTab('settings')} title="계정 설정" style={{ width:26, height:26, borderRadius:'50%', border:`1px solid ${S.border}`, marginLeft:3, cursor:'pointer', flexShrink:0 }}/>
           )}
         </div>
       </nav>
 
       {/* ── 추천 탭 ── */}
       {tab==='recommend' && (
-        <div style={{ padding:'20px 32px', maxWidth:1200, margin:'0 auto' }}>
+        <div style={{ padding:'16px', maxWidth:480, margin:'0 auto' }}>
           <div style={{ display:'flex', gap:4, marginBottom:16 }}>
             {[['today','오늘 코디'],['week','주간 / 여행']].map(([m,l])=>(
               <button key={m} onClick={()=>setRecommendMode(m)} style={{ padding:'8px 18px', borderRadius:99, fontSize:13, fontWeight:500, border:`1px solid ${recommendMode===m?S.accent:S.border}`, background:recommendMode===m?S.accent:S.surface, color:recommendMode===m?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{l}</button>
@@ -1280,7 +1284,7 @@ export default function Home() {
 
       {/* ── 옷장 탭 ── */}
       {tab==='closet' && (
-        <div style={{ padding:'20px 32px', maxWidth:1200, margin:'0 auto' }}>
+        <div style={{ padding:'16px', maxWidth:480, margin:'0 auto' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
             <div style={{ fontSize:18, fontWeight:700, letterSpacing:'-0.02em' }}>내 옷장 <span style={{ fontSize:13, color:S.sub, fontWeight:400 }}>{clothes.length}개</span></div>
             <div style={{ display:'flex', gap:8 }}>
@@ -1356,7 +1360,7 @@ export default function Home() {
 
       {/* ── 설정 탭 ── */}
       {tab==='settings' && (
-        <div style={{ padding:'20px 32px', maxWidth:1200, margin:'0 auto' }}>
+        <div style={{ padding:'16px', maxWidth:480, margin:'0 auto' }}>
           <div style={{ fontSize:18, fontWeight:700, marginBottom:16 }}>설정</div>
 
           {/* Google 로그인 카드 */}
@@ -1422,11 +1426,11 @@ export default function Home() {
                 <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>착용 후 며칠간 추천 제외 (카테고리별)</span>
               </div>
               {[['아우터','rewear_outer',1],['상의','rewear_top',2],['하의','rewear_bottom',3]].map(([label, key, def])=>(
-                <div key={key} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-                  <span style={{ fontSize:12, color:S.sub, width:40 }}>{label}</span>
+                <div key={key} style={{ marginBottom:10 }}>
+                  <span style={{ fontSize:12, color:S.sub, display:'block', marginBottom:4 }}>{label}</span>
                   <div style={{ display:'flex', gap:4 }}>
                     {[1,2,3,5,7].map(d=>(
-                      <button key={d} onClick={()=>setSettings(s=>({...s,[key]:d}))} style={{ padding:'5px 9px', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${(settings[key]??def)===d?S.accent:S.border}`, background:(settings[key]??def)===d?S.accent:S.surface, color:(settings[key]??def)===d?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{d}일</button>
+                      <button key={d} onClick={()=>setSettings(s=>({...s,[key]:d}))} style={{ flex:1, padding:'6px 0', borderRadius:8, fontSize:12, fontWeight:500, border:`1px solid ${(settings[key]??def)===d?S.accent:S.border}`, background:(settings[key]??def)===d?S.accent:S.surface, color:(settings[key]??def)===d?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{d}일</button>
                     ))}
                   </div>
                 </div>
@@ -1446,13 +1450,13 @@ export default function Home() {
             </div>
 
             {/* 아우터 필수 기준 온도 */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', borderTop:`1px solid ${S.border}` }}>
-              <div style={{ fontSize:14 }}>아우터 필수 기준
+            <div style={{ padding:'12px 0', borderTop:`1px solid ${S.border}` }}>
+              <div style={{ fontSize:14, marginBottom:8 }}>아우터 필수 기준
                 <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>체감온도 이하면 아우터 필수</span>
               </div>
               <div style={{ display:'flex', gap:6 }}>
                 {[10,13,15,18].map(t=>(
-                  <button key={t} onClick={()=>setSettings(s=>({...s,outer_temp:t}))} style={{ padding:'6px 10px', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${(settings.outer_temp||15)===t?S.accent:S.border}`, background:(settings.outer_temp||15)===t?S.accent:S.surface, color:(settings.outer_temp||15)===t?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{t}°C</button>
+                  <button key={t} onClick={()=>setSettings(s=>({...s,outer_temp:t}))} style={{ flex:1, padding:'7px 0', borderRadius:8, fontSize:12, fontWeight:500, border:`1px solid ${(settings.outer_temp||15)===t?S.accent:S.border}`, background:(settings.outer_temp||15)===t?S.accent:S.surface, color:(settings.outer_temp||15)===t?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{t}°C</button>
                 ))}
               </div>
             </div>
@@ -1462,7 +1466,7 @@ export default function Home() {
               <div style={{ fontSize:14 }}>주간 동일 아이템 반복
                 <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>같은 주에 같은 옷 재사용 허용</span>
               </div>
-              <button onClick={()=>setSettings(s=>({...s,no_repeat_week:!s.no_repeat_week}))} style={{ padding:'6px 14px', borderRadius:8, fontSize:12, fontWeight:500, border:`1px solid ${settings.no_repeat_week?S.danger:S.border}`, background:settings.no_repeat_week?'#FEE2E2':S.surface, color:settings.no_repeat_week?S.danger:S.sub, cursor:'pointer', fontFamily:'inherit' }}>
+              <button onClick={()=>setSettings(s=>({...s,no_repeat_week:!s.no_repeat_week}))} style={{ padding:'6px 14px', borderRadius:8, fontSize:12, fontWeight:500, border:`1px solid ${settings.no_repeat_week?S.danger:S.border}`, background:settings.no_repeat_week?'#FEE2E2':S.surface, color:settings.no_repeat_week?S.danger:S.sub, cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>
                 {settings.no_repeat_week ? '반복 금지' : '허용'}
               </button>
             </div>
@@ -1475,6 +1479,33 @@ export default function Home() {
               <div style={{ fontSize:14 }}>등록된 옷<span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>{clothes.length}개</span></div>
               <button onClick={()=>showConfirm('모든 옷 데이터를 초기화할까요?', ()=>{ clothes.forEach(c=>ImageStore.del(c.id)); setClothes([]); LS.set('clothes',[]); setConfirm(null); })} style={{ ...btn({ padding:'6px 12px', fontSize:12, color:S.danger, borderColor:S.danger }) }}>초기화</button>
             </div>
+            {user && (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingBottom:12, borderBottom:`1px solid ${S.border}`, marginBottom:12 }}>
+                <div style={{ fontSize:14 }}>클라우드 업로드
+                  <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>현재 기기 옷 데이터를 클라우드에 저장</span>
+                </div>
+                <button onClick={async () => {
+                  if (clothes.length === 0) return showToast('등록된 옷이 없어요');
+                  await updateUserField(auth.currentUser.uid, 'clothes', clothes);
+                  showToast(`${clothes.length}개 업로드 완료!`);
+                }} style={btnPrimary({ padding:'6px 12px', fontSize:12 })}>업로드</button>
+              </div>
+            )}
+            {user && (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingBottom:12, borderBottom:`1px solid ${S.border}`, marginBottom:12 }}>
+                <div style={{ fontSize:14 }}>클라우드에서 불러오기
+                  <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>클라우드 데이터로 현재 기기 덮어쓰기</span>
+                </div>
+                <button onClick={async () => {
+                  const data = await loadUserData(auth.currentUser.uid);
+                  if (!data?.clothes?.length) return showToast('클라우드에 저장된 옷이 없어요');
+                  const withImages = data.clothes.map(c => ({ ...c, image: ImageStore.get(c.id) || null }));
+                  setClothes(withImages);
+                  LS.set('clothes', data.clothes);
+                  showToast(`${data.clothes.length}개 불러오기 완료!`);
+                }} style={btn({ padding:'6px 12px', fontSize:12 })}>불러오기</button>
+              </div>
+            )}
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
               <div style={{ fontSize:14 }}>이미지 복구
                 <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>
