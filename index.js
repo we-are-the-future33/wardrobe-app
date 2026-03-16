@@ -1121,14 +1121,8 @@ export default function Home() {
               {t==='recommend'?'✨ 추천':t==='closet'?'👔 옷장':'⚙️ 설정'}
             </button>
           ))}
-          {!authLoading && (
-            user ? (
-              <img src={user.photoURL} alt="" onClick={signOutUser} title="로그아웃" style={{ width:28, height:28, borderRadius:'50%', border:`1px solid ${S.border}`, marginLeft:4, cursor:'pointer', flexShrink:0 }}/>
-            ) : (
-              <button onClick={signInWithGoogle} style={{ display:'flex', alignItems:'center', gap:4, marginLeft:4, padding:'5px 10px', borderRadius:8, fontSize:12, fontWeight:500, border:`1px solid ${S.border}`, background:S.surface, color:S.text, cursor:'pointer', fontFamily:'inherit', flexShrink:0, whiteSpace:'nowrap' }}>
-                🔗 로그인
-              </button>
-            )
+          {!authLoading && user && (
+            <img src={user.photoURL} alt="" onClick={()=>setTab('settings')} title="계정 설정" style={{ width:28, height:28, borderRadius:'50%', border:`1px solid ${S.border}`, marginLeft:4, cursor:'pointer', flexShrink:0 }}/>
           )}
         </div>
       </nav>
@@ -1353,6 +1347,33 @@ export default function Home() {
       {tab==='settings' && (
         <div style={{ padding:'20px 32px', maxWidth:1200, margin:'0 auto' }}>
           <div style={{ fontSize:18, fontWeight:700, marginBottom:16 }}>설정</div>
+
+          {/* Google 로그인 카드 */}
+          <div style={card}>
+            <div style={{ fontSize:12, fontWeight:500, color:S.sub, marginBottom:12 }}>계정 연동</div>
+            {!authLoading && (
+              user ? (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <img src={user.photoURL} alt="" style={{ width:36, height:36, borderRadius:'50%', border:`1px solid ${S.border}` }}/>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:500 }}>{user.displayName}</div>
+                      <div style={{ fontSize:11, color:S.sub }}>{user.email}</div>
+                    </div>
+                  </div>
+                  <button onClick={signOutUser} style={btn({ fontSize:12 })}>로그아웃</button>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize:13, color:S.sub, marginBottom:12, lineHeight:1.6 }}>Google 로그인하면 옷장 데이터가 클라우드에 저장되어 여러 기기에서 사용할 수 있어요.</div>
+                  <button onClick={signInWithGoogle} style={btnPrimary({ width:'100%', gap:8 })}>
+                    <span>🔗</span> Google로 로그인
+                  </button>
+                </div>
+              )
+            )}
+          </div>
+
           <div style={card}>
             <div style={{ fontSize:12, fontWeight:500, color:S.sub, marginBottom:12 }}>내 정보</div>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', borderBottom:`1px solid ${S.border}` }}>
