@@ -120,7 +120,7 @@ export default function Home() {
   const [clothes, setClothes] = useState([]);
   const [catFilter, setCatFilter] = useState('전체');
   const [selectMode, setSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [selectedIds, setSelectedIds] = useState(new Set()); // Set은 useEffect 이후에만 사용
 
   // 일정/추천
   const [schedules, setSchedules] = useState([
