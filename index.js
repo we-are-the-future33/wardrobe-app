@@ -185,9 +185,14 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
     // Firebase 인증 상태 감지
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      setAuthLoading(false);
+    // 3초 안에 콜백 안 오면 강제로 authLoading 해제 (Firebase 초기화 실패 대비)
+    const authTimeout = setTimeout(() => setAuthLoading(false), 3000);
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        clearTimeout(authTimeout);
+        setUser(firebaseUser);
+        setAuthLoading(false);
       if (firebaseUser) {
         // 로그인 시 Firestore에서 데이터 로드
         const data = await loadUserData(firebaseUser.uid);
@@ -206,7 +211,12 @@ export default function Home() {
           if (data.packingList?.length) setPackingList(data.packingList);
         }
       }
-    });
+      });
+    } catch(e) {
+      clearTimeout(authTimeout);
+      setAuthLoading(false);
+      console.error('Firebase Auth 초기화 실패:', e);
+    }
     // clothes는 아래 mounted useEffect에서 이미지 포함해서 로드
     setSettings(LS.get('settings', { home_city:'', cold_sensitivity:0, layering:'auto', rewear_days:2, rewear_outer:1, rewear_top:2, rewear_bottom:3, exclude_rating:1, outer_temp:15, no_repeat_week:false }));
     setWeekPlan(buildWeekPlan());
@@ -250,6 +260,7 @@ export default function Home() {
     if (savedPackingList.length > 0) setPackingList(savedPackingList);
     const savedConfirmed = LS.get('confirmedDates', []);
     if (savedConfirmed.length > 0) setConfirmedDates(new Set(savedConfirmed));
+    return () => { clearTimeout(authTimeout); unsubscribe(); };
   }, []);
 
   // ── 헬퍼 ─────────────────────────────────────────
