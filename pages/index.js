@@ -209,6 +209,17 @@ export default function Home() {
             });
           }
           if (data.packingList?.length) setPackingList(data.packingList);
+          // 옷 목록 자동 로드 (이미지는 localStorage img_{id}에서 병합)
+          if (data.clothes?.length) {
+            const withImages = data.clothes.map(c => ({
+              ...c,
+              image: localStorage.getItem('img_' + c.id) || null
+            }));
+            setClothes(withImages);
+            // localStorage에도 동기화
+            const toStore = data.clothes.map(({ image, ...rest }) => rest);
+            LS.set('clothes', toStore);
+          }
         }
       }
       });
