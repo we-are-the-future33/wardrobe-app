@@ -1123,13 +1123,10 @@ export default function Home() {
           ))}
           {!authLoading && (
             user ? (
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginLeft:8 }}>
-                <img src={user.photoURL} alt="" style={{ width:28, height:28, borderRadius:'50%', border:`1px solid ${S.border}` }}/>
-                <button onClick={signOutUser} style={{ fontSize:11, color:S.sub, background:'none', border:`1px solid ${S.border}`, borderRadius:8, padding:'4px 8px', cursor:'pointer', fontFamily:'inherit' }}>로그아웃</button>
-              </div>
+              <img src={user.photoURL} alt="" onClick={signOutUser} title="로그아웃" style={{ width:28, height:28, borderRadius:'50%', border:`1px solid ${S.border}`, marginLeft:4, cursor:'pointer', flexShrink:0 }}/>
             ) : (
-              <button onClick={signInWithGoogle} style={{ display:'flex', alignItems:'center', gap:6, marginLeft:8, padding:'6px 12px', borderRadius:8, fontSize:12, fontWeight:500, border:`1px solid ${S.border}`, background:S.surface, color:S.text, cursor:'pointer', fontFamily:'inherit' }}>
-                <span>🔗</span> Google 로그인
+              <button onClick={signInWithGoogle} style={{ display:'flex', alignItems:'center', gap:4, marginLeft:4, padding:'5px 10px', borderRadius:8, fontSize:12, fontWeight:500, border:`1px solid ${S.border}`, background:S.surface, color:S.text, cursor:'pointer', fontFamily:'inherit', flexShrink:0, whiteSpace:'nowrap' }}>
+                🔗 로그인
               </button>
             )
           )}
