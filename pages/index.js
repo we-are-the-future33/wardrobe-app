@@ -87,12 +87,15 @@ function ConfirmModal({ message, onConfirm, onCancel }) {
 // ── 날짜 초기화 헬퍼 (SSR 안전) ──────────────────
 function buildWeekPlan() {
   const days = [];
+  const base = new Date();
+  const baseDate = `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
   for (let i = 0; i < 28; i++) {
-    const d = new Date();
+    const d = new Date(base);
     d.setDate(d.getDate() + i);
     const dow = d.getDay();
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     days.push({
-      date: d.toISOString().split('T')[0],
+      date: dateStr,
       city: '', env: 'indoor', place: '오피스',
       occasion: '비즈니스 캐주얼',
       active: dow !== 0 && dow !== 6 && i < 5,
@@ -130,13 +133,13 @@ export default function Home() {
   const [confirmedDates, setConfirmedDates] = useState(new Set()); // 확정된 날짜
   const [regenLoading, setRegenLoading] = useState({}); // { date: bool }
   const [weekLoading, setWeekLoading] = useState(false);
-  const [packingList, setPackingList] = useState('');
+  const [packingList, setPackingList] = useState([]);
 
   // 모달
   const [modalOpen, setModalOpen]     = useState(false);
   const [addTab, setAddTab]           = useState('url');
   const [editingId, setEditingId]     = useState(null);
-  const [clothForm, setClothForm]     = useState({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', brand:'', price:'', season:'', purchase_date:'', preference:3 });
+  const [clothForm, setClothForm]     = useState({ name:'', category:'상의', temp_min:'', temp_max:'', style:'', color:'', size:'', material:'', occasions:'', brand:'', price:'', season:'', purchase_date:'', preference:3 });
   const [resultTags, setResultTags]   = useState(null);
   const [pendingItems, setPendingItems] = useState([]);
   const [colorOptions, setColorOptions] = useState([]);
@@ -163,7 +166,7 @@ export default function Home() {
   const [orderUrlLoading, setOrderUrlLoading] = useState({}); // { itemId: bool }
 
   // 설정
-  const [settings, setSettings] = useState({ home_city:'', cold_sensitivity:0, layering:'auto', rewear_days:2, exclude_rating:1, outer_temp:15, no_repeat_week:false });
+  const [settings, setSettings] = useState({ home_city:'', cold_sensitivity:0, layering:'auto', rewear_days:2, rewear_outer:1, rewear_top:2, rewear_bottom:3, exclude_rating:1, outer_temp:15, no_repeat_week:false });
 
   // UI
   const [toast, setToast]         = useState('');
@@ -175,25 +178,31 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
     // clothes는 아래 mounted useEffect에서 이미지 포함해서 로드
-    setSettings(LS.get('settings', { home_city:'', cold_sensitivity:0, layering:'auto', rewear_days:2, exclude_rating:1, outer_temp:15, no_repeat_week:false }));
+    setSettings(LS.get('settings', { home_city:'', cold_sensitivity:0, layering:'auto', rewear_days:2, rewear_outer:1, rewear_top:2, rewear_bottom:3, exclude_rating:1, outer_temp:15, no_repeat_week:false }));
     setWeekPlan(buildWeekPlan());
     setClothForm(f => ({ ...f, purchase_date: new Date().toISOString().split('T')[0] }));
     // 주간 코디 복원
     const savedWeekOutfits = LS.get('weekOutfits', []);
-    if (savedWeekOutfits.length > 0) {
-      setWeekOutfits(savedWeekOutfits);
+    const savedConfirmedOutfits = LS.get('confirmedOutfits', []);
+    // weekOutfits + confirmedOutfits 한 번에 병합 (React 배치 업데이트 이슈 방지)
+    const mergedOutfits = [...savedWeekOutfits];
+    savedConfirmedOutfits.forEach(co => {
+      if (!mergedOutfits.find(o=>o.date===co.date)) mergedOutfits.push(co);
+    });
+    if (mergedOutfits.length > 0) {
+      setWeekOutfits(mergedOutfits);
       // 날씨 없는 항목 백그라운드로 보완
       const savedSettings = LS.get('settings', { home_city:'' });
       const homeCity = savedSettings.home_city;
       if (homeCity) {
-        const needWeather = savedWeekOutfits.filter(o => !o.weather);
+        const needWeather = mergedOutfits.filter(o => !o.weather);
         if (needWeather.length > 0) {
           Promise.all(needWeather.map(async o => {
             try {
               const r = await fetch(`/api/weather?city=${encodeURIComponent(homeCity)}&time=09:00`);
-              if (!r.ok) return null; // 400 등 에러 시 무시
+              if (!r.ok) return null;
               const w = await r.json();
-              if (w.error) return null; // API 에러 시 무시
+              if (w.error) return null;
               return { date: o.date, weather: w };
             } catch { return null; }
           })).then(results => {
@@ -211,15 +220,6 @@ export default function Home() {
     if (savedPackingList.length > 0) setPackingList(savedPackingList);
     const savedConfirmed = LS.get('confirmedDates', []);
     if (savedConfirmed.length > 0) setConfirmedDates(new Set(savedConfirmed));
-    // 확정된 outfit 내용을 weekOutfits에 병합 (weekOutfits가 없어도 확정 코디는 복원)
-    const savedConfirmedOutfits = LS.get('confirmedOutfits', []);
-    if (savedConfirmedOutfits.length > 0) {
-      setWeekOutfits(prev => {
-        const dateSet = new Set(prev.map(o=>o.date));
-        const toAdd = savedConfirmedOutfits.filter(o=>!dateSet.has(o.date));
-        return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
-      });
-    }
   }, []);
 
   // ── 헬퍼 ─────────────────────────────────────────
@@ -311,7 +311,8 @@ export default function Home() {
         return `[${cat}] ` + items.map(c => {
           if (c.last_worn) {
             const diffDays = Math.floor((today - new Date(c.last_worn)) / 86400000);
-            if (diffDays < (settings.rewear_days||2)) return `${c.name}(착용불가-${diffDays}일전착용)`;
+            const rewear = c.category==='아우터'?(settings.rewear_outer??1):c.category==='상의'?(settings.rewear_top??2):(settings.rewear_bottom??3);
+            if (diffDays < rewear) return `${c.name}(착용불가-${diffDays}일전착용)`;
           }
           if ((c.preference||3) <= (settings.exclude_rating??1)) return `${c.name}(추천제외)`;
           const tags = [
@@ -326,7 +327,6 @@ export default function Home() {
       }).filter(Boolean).join('\n');
       const weatherText = wList.map(w => `- ${w.time} [${w.isIndoor?'실내':'실외'}] ${w.city}: ${w.temp}°C`).join('\n');
       const outdoorTemps = wList.filter(w=>!w.isIndoor).map(w=>w.feels_like).filter(Boolean);
-      const indoorCount = wList.filter(w=>w.isIndoor).length;
       const outdoorCount = wList.filter(w=>!w.isIndoor).length;
       const minTemp = outdoorTemps.length ? Math.min(...outdoorTemps) : 15;
       const hasRain = wList.some(w=>!w.isIndoor && w.chance_of_rain>30);
@@ -335,11 +335,15 @@ export default function Home() {
       const avgIndoorTemp = indoorTemps.length ? Math.round(indoorTemps.reduce((a,b)=>a+b,0)/indoorTemps.length) : 22;
       const outerRule = outdoorTemps.length === 0
         ? '실외 이동 없음 → 아우터(outer) 반드시 null'
-        : minTemp <= 10
-          ? `실외 체감 ${minTemp}°C → 두꺼운 아우터 필수(코트/패딩/점퍼), outer에 반드시 지정`
-          : minTemp <= 15
-            ? `실외 체감 ${minTemp}°C → 아우터 필수, outer에 반드시 지정`
-            : `실외 체감 ${minTemp}°C → 아우터 불필요, outer는 null`;
+        : minTemp <= 5
+          ? `실외 체감 ${minTemp}°C → 패딩/코트 등 두꺼운 방한 아우터 필수. outer2에 니트/후리스 미들레이어 추천`
+          : minTemp <= 10
+            ? `실외 체감 ${minTemp}°C → 코트/점퍼/두꺼운 자켓 필수. 필요시 outer2에 가디건/니트 레이어링 추천`
+            : minTemp <= (settings.outer_temp||15)
+              ? `실외 체감 ${minTemp}°C → 가벼운 자켓/바람막이/트렌치 필수. outer2는 불필요`
+              : minTemp <= 20
+                ? `실외 체감 ${minTemp}°C → 아우터 선택. 일교차 있으면 가벼운 자켓/카디건 추천, outer는 null 가능`
+                : `실외 체감 ${minTemp}°C → 아우터 불필요. outer 반드시 null`;
       const topRule = avgIndoorTemp >= 22
         ? `실내 평균 ${avgIndoorTemp}°C → 상의는 얇게 (반팔/얇은 셔츠/얇은 니트 우선)`
         : avgIndoorTemp >= 18
@@ -462,7 +466,7 @@ export default function Home() {
           enriched: true,
         };
       }));
-      showToast(imageData && imageData.startsWith('data:') ? '이미지·정보 보강 완료' : 'URL 정보로 보강됐어요 (이미지 제외)');
+      showToast(imageData ? '이미지·정보 보강 완료' : 'URL 정보로 보강됐어요 (이미지 제외)');
     } catch(e) { showToast('URL 파싱 실패: ' + e.message); console.error(e); }
     finally { setOrderUrlLoading(m => ({ ...m, [itemId]: false })); }
   };
@@ -473,7 +477,7 @@ export default function Home() {
     const newClothes = toSave.map(i => ({
       id: Date.now().toString()+Math.random().toString(36).slice(2),
       name:i.name, brand:i.brand||'', price:i.price||'', color:i.color||'', size:i.size||'',
-      category:i.category||'상의', temp_min:parseInt(i.temp_min)||10, temp_max:parseInt(i.temp_max)||20,
+      category:i.category||'상의', temp_min:isNaN(parseInt(i.temp_min))?10:parseInt(i.temp_min), temp_max:isNaN(parseInt(i.temp_max))?20:parseInt(i.temp_max),
       image:i.image||null, preference:3,
       style:i.style||'', material:i.material||'', season:i.season||'',
       source_url: orderUrlMap[i.id]||'',
@@ -518,9 +522,10 @@ export default function Home() {
     if (toSave.length===0) return showToast('저장할 아이템을 선택해주세요');
     const newClothes = toSave.map(i => ({
       id: Date.now().toString()+Math.random().toString(36).slice(2),
-      name:i.name, brand:i.brand, price:i.price, category:i.category,
-      temp_min:parseInt(i.temp_min)||10, temp_max:parseInt(i.temp_max)||20,
-      style:i.style, color:i.color, image:i.image, preference:3,
+      name:i.name, brand:i.brand||'', price:i.price||'', category:i.category,
+      temp_min:isNaN(parseInt(i.temp_min))?10:parseInt(i.temp_min), temp_max:isNaN(parseInt(i.temp_max))?20:parseInt(i.temp_max),
+      style:i.style||'', color:i.color||'', size:i.size||'', material:i.material||'',
+      season:i.season||'', occasions:i.occasions||'', image:i.image||null, preference:3,
       source_url:i.url||'',
       purchase_date:new Date().toISOString().split('T')[0], added_at:new Date().toISOString(),
     }));
@@ -583,12 +588,12 @@ export default function Home() {
     if (!clothForm.temp_min||!clothForm.temp_max) return showToast('온도 범위를 입력해주세요');
     const image = imageBase64 ? `data:${imageType};base64,${imageBase64}` : (fetchedImage||null);
     if (editingId) {
-      const updated = clothes.map(c => c.id===editingId ? { ...c, ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image:image||c.image } : c);
+      const updated = clothes.map(c => c.id===editingId ? { ...c, ...clothForm, temp_min:(v=>isNaN(v)?0:v)(parseInt(clothForm.temp_min)), temp_max:(v=>isNaN(v)?30:v)(parseInt(clothForm.temp_max)), preference:parseInt(clothForm.preference)||3, image:image||c.image } : c);
       saveClothes(updated);
       setModalOpen(false); resetModal();
       showToast(`"${clothForm.name}" 수정됨`);
     } else {
-      const newCloth = { id:Date.now().toString(), ...clothForm, temp_min:parseInt(clothForm.temp_min), temp_max:parseInt(clothForm.temp_max), preference:parseInt(clothForm.preference), image, size:clothForm.size||'', source_url:shopUrl||'', added_at:new Date().toISOString() };
+      const newCloth = { id:Date.now().toString()+Math.random().toString(36).slice(2), ...clothForm, temp_min:(v=>isNaN(v)?0:v)(parseInt(clothForm.temp_min)), temp_max:(v=>isNaN(v)?30:v)(parseInt(clothForm.temp_max)), preference:parseInt(clothForm.preference)||3, image, size:clothForm.size||'', source_url:shopUrl||'', added_at:new Date().toISOString() };
       const updated = [...clothes, newCloth];
       saveClothes(updated);
       if (pendingItems.length>0) {
@@ -654,13 +659,13 @@ export default function Home() {
     const homeCity = settings.home_city;
     if (!homeCity) return showToast('설정에서 집 지역을 입력해주세요');
     if (clothes.length===0) return showToast('먼저 옷을 등록해주세요');
-    const activeDays = weekPlan.filter(d=>d.active);
+    const activeDays = weekPlan.slice(weekOffset*7, weekOffset*7+7).filter(d=>d.active);
     if (activeDays.length===0) return showToast('하루 이상 선택해주세요');
     setWeekLoading(true);
     // 확정된 코디는 보존
     const confirmedOutfitsSaved = LS.get('confirmedOutfits', []);
     setWeekOutfits(confirmedOutfitsSaved); // 확정 코디만 남김
-    setPackingList('');
+    setPackingList([]);
     try {
       const weatherDays = await Promise.all(activeDays.map(async d => {
         const city = d.city||homeCity;
@@ -678,7 +683,8 @@ export default function Home() {
         return `[${cat}] `+items.map(c => {
           if (c.last_worn) {
             const diffDays = Math.floor((today - new Date(c.last_worn)) / 86400000);
-            if (diffDays<(settings.rewear_days||2)) return `${c.name}(착용불가)`;
+            const rewear = c.category==='아우터'?(settings.rewear_outer??1):c.category==='상의'?(settings.rewear_top??2):(settings.rewear_bottom??3);
+            if (diffDays<rewear) return `${c.name}(착용불가)`;
           }
           if ((c.preference||3) <= (settings.exclude_rating??1)) return `${c.name}(추천제외)`;
           const tags = [
@@ -701,7 +707,7 @@ export default function Home() {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:2000,
-          system:'패션 스타일리스트. 주간 코디를 JSON으로만 반환. 다른 텍스트 없음. 반드시 각 일정의 [날짜:YYYY-MM-DD]를 date 필드에 그대로 복사할 것. 년도를 임의로 변경하지 말 것. reason에는 날짜/요일 언급 금지. 반드시 선택한 top/outer/bottom 이름을 직접 언급하며 조합 이유를 2문장 이내로 설명. 온도별 아우터 규칙: 체감 15°C 이하 → 아우터 필수, 10°C 이하 → 두꺼운 아우터 우선, 15°C 초과 → 아우터 선택.',
+          system:'패션 스타일리스트. 주간 코디를 JSON으로만 반환. 다른 텍스트 없음. 반드시 각 일정의 [날짜:YYYY-MM-DD]를 date 필드에 그대로 복사할 것. 년도를 임의로 변경하지 말 것. reason에는 날짜/요일 언급 금지. 반드시 선택한 top/outer/bottom 이름을 직접 언급하며 조합 이유를 2문장 이내로 설명. 온도별 아우터 규칙: 5°C 이하→패딩/코트+미들레이어, 6~10°C→코트/점퍼 필수, 11~15°C→가벼운 자켓/바람막이 필수, 16~20°C→아우터 선택(일교차 있으면 추천), 21°C 이상→아우터 null.',
           messages:[{ role:'user', content:`일정:\n${dayText}\n\n내 옷장:\n${clothText}\n\n각 날짜에 맞는 코디 추천. date 필드는 반드시 위 [날짜:YYYY-MM-DD] 값 그대로 사용. (착용불가)(추천제외) 표시된 옷 절대 사용 금지. top과 bottom 모두 필수(원피스 제외시). outer만 null 가능.\nJSON만 응답:{"outfits":[{"date":"YYYY-MM-DD","outer2":"추가레이어또는null","outer":"아우터또는null","top":"이름(필수)","bottom":"이름(원피스외필수)","reason":"top/outer/bottom 이름 언급하며 조합이유(2문장이내)"}],"packing_list":["아이템"]}` }]
         })
       });
@@ -729,8 +735,9 @@ export default function Home() {
         return { ...o, date, weather: weatherMap[date] || weatherMap[o.date] || null, indoorPlaces: indoorMap[date] || [] };
       });
       // 확정된 날짜는 새 추천으로 덮어쓰지 않음
+      const confirmedDateSet = new Set(confirmedOutfitsSaved.map(o=>o.date));
       const finalOutfits = [
-        ...outfitsWithWeather.filter(o=>!confirmedDates.has(o.date)),
+        ...outfitsWithWeather.filter(o=>!confirmedDateSet.has(o.date)),
         ...confirmedOutfitsSaved,
       ].sort((a,b)=>a.date.localeCompare(b.date));
       setWeekOutfits(finalOutfits);
@@ -758,7 +765,7 @@ export default function Home() {
         const b64 = p.image_url;
         await ImageStore.set(c.id, b64);
         done++;
-        setRestoreProgress(p => ({ ...p, done, log: `✅ ${c.name}` }));
+        setRestoreProgress(prev => ({ ...prev, done, log: `✅ ${c.name}` }));
         // clothes state도 업데이트
         setClothes(prev => prev.map(x => x.id===c.id ? {...x, image:b64, hasImage:true} : x));
         // LS도 업데이트
@@ -767,10 +774,10 @@ export default function Home() {
         localStorage.setItem('clothes', JSON.stringify(updated));
       } catch(e) {
         done++;
-        setRestoreProgress(p => ({ ...p, done, log: `❌ ${c.name}: ${e.message}` }));
+        setRestoreProgress(prev => ({ ...prev, done, log: `❌ ${c.name}: ${e.message}` }));
       }
     }
-    setRestoreProgress(p => ({ ...p, log: `완료! ${targets.length}개 중 성공: ${done}개` }));
+    setRestoreProgress(prev => ({ ...prev, log: `완료! ${targets.length}개 중 성공: ${done}개` }));
   };
 
   const regenOutfit = async (outfit) => {
@@ -788,9 +795,10 @@ export default function Home() {
           if (usedInWeek.includes(c.name) && !confirmedNames.includes(c.name)) return c.name+'(이번주사용)';
           if (c.last_worn) {
             const diffDays = Math.floor((today - new Date(c.last_worn)) / 86400000);
-            if (diffDays<(settings.rewear_days||2)) return c.name+'(착용불가)';
+            const rewear = c.category==='아우터'?(settings.rewear_outer??1):c.category==='상의'?(settings.rewear_top??2):(settings.rewear_bottom??3);
+            if (diffDays<rewear) return c.name+'(착용불가)';
           }
-          if ((c.preference||3) <= 1) return c.name+'(추천제외)';
+          if ((c.preference||3) <= (settings.exclude_rating??1)) return c.name+'(추천제외)';
           return c.name+'('+c.temp_min+'~'+c.temp_max+'C)';
         }).join(', ');
       }).filter(Boolean).join('\n');
@@ -808,9 +816,11 @@ export default function Home() {
       const data = await r.json();
       const text = data.content?.[0]?.text?.replace(/```json|```/g,'').trim()||'{}';
       const newOutfit = JSON.parse(text);
-      const updated = weekOutfits.map(o => o.date===date ? {...o, ...newOutfit, date, weather:o.weather} : o);
-      setWeekOutfits(updated);
-      LS.set('weekOutfits', updated);
+      setWeekOutfits(prev => {
+        const updated = prev.map(o => o.date===date ? {...o, ...newOutfit, date, weather:o.weather} : o);
+        LS.set('weekOutfits', updated);
+        return updated;
+      });
     } catch(e) { showToast('재추천 실패: '+e.message); }
     finally { setRegenLoading(m=>({...m,[date]:false})); }
   };
@@ -825,8 +835,9 @@ export default function Home() {
         LS.set('confirmedOutfits', saved.filter(o=>o.date!==date));
       } else {
         next.add(date);
-        // 확정 시 outfit 전체 내용도 별도 저장
-        const outfit = weekOutfits.find(o=>o.date===date);
+        // 확정 시 outfit 전체 내용도 별도 저장 (LS에서 최신값 사용)
+        const currentOutfits = LS.get('weekOutfits', []);
+        const outfit = currentOutfits.find(o=>o.date===date) || weekOutfits.find(o=>o.date===date);
         if (outfit) {
           const saved = LS.get('confirmedOutfits', []);
           const updated = [...saved.filter(o=>o.date!==date), outfit];
@@ -845,12 +856,13 @@ export default function Home() {
     setRegenLoading(m=>({...m,[key]:true}));
     try {
       const today = new Date();
-      const cat = slot==='top'||slot==='outer2' ? '상의,아우터' : slot==='outer' ? '아우터' : '하의,원피스';
+      const validCats = slot==='top' ? ['상의'] : slot==='outer2' ? ['아우터','상의'] : slot==='outer' ? ['아우터'] : ['하의','원피스'];
       const confirmedNames = weekOutfits.filter(o=>confirmedDates.has(o.date)).flatMap(o=>[o.outer2,o.outer,o.top,o.bottom].filter(Boolean));
       const usedNames = [...confirmedNames, ...[outfit.outer2,outfit.outer,outfit.top,outfit.bottom].filter((v,i)=>['outer2','outer','top','bottom'][i]!==slot&&v&&v!=='null')];
       const candidates = clothes.filter(c=>{
+        if (!validCats.includes(c.category)) return false; // 카테고리 필터 적용
         if (usedNames.includes(c.name)) return false;
-        if (c.last_worn) { const d=Math.floor((today-new Date(c.last_worn))/86400000); if(d<(settings.rewear_days||2)) return false; }
+        if (c.last_worn) { const d=Math.floor((today-new Date(c.last_worn))/86400000); const rw=c.category==='아우터'?(settings.rewear_outer??1):c.category==='상의'?(settings.rewear_top??2):(settings.rewear_bottom??3); if(d<rw) return false; }
         if ((c.preference||3)<=(settings.exclude_rating??1)) return false;
         return true;
       }).map(c=>c.name+'('+c.temp_min+'~'+c.temp_max+'C'+(c.color?',색:'+c.color:'')+(c.style?',스타일:'+c.style:'')+(c.occasions?',착용:'+c.occasions:'')+')').join(', ');
@@ -867,9 +879,11 @@ export default function Home() {
       const text = data.content?.[0]?.text?.replace(/```json|```/g,'').trim()||'{}';
       const result = JSON.parse(text);
       if (result[slot]) {
-        const updated = weekOutfits.map(o => o.date===date ? {...o, [slot]:result[slot]} : o);
-        setWeekOutfits(updated);
-        LS.set('weekOutfits', updated);
+        setWeekOutfits(prev => {
+          const updated = prev.map(o => o.date===date ? {...o, [slot]:result[slot]} : o);
+          LS.set('weekOutfits', updated);
+          return updated;
+        });
       }
     } catch(e) { showToast('재추천 실패'); }
     finally { setRegenLoading(m=>({...m,[key]:false})); }
@@ -1031,7 +1045,7 @@ export default function Home() {
           </div>
         )}
         {!showDate && (
-          <button onClick={()=>{ layers.forEach(l=>markWorn(l.name)); }} style={{ ...btn({ width:'100%', marginTop:8, fontSize:12 }) }}>
+          <button onClick={()=>{ layers.forEach(l=>{ const baseName = l.name.replace(/\(.*$/, '').trim(); markWorn(baseName); }); }} style={{ ...btn({ width:'100%', marginTop:8, fontSize:12 }) }}>
             ✓ 오늘 입었어요
           </button>
         )}
@@ -1163,7 +1177,7 @@ export default function Home() {
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
               <span style={{ fontSize:12, color:S.sub }}>주간 코디 — 탭 나가도 유지돼요</span>
               <div style={{ display:'flex', gap:8 }}>
-                <button onClick={regenUnconfirmed} disabled={weekLoading} style={{ fontSize:11, color:'#0C447C', background:'#E6F1FB', border:'1px solid #85B7EB', borderRadius:8, padding:'4px 10px', cursor:'pointer', fontFamily:'inherit', fontWeight:500 }}>↺ 미확정 재추천</button>
+                <button onClick={regenUnconfirmed} disabled={weekLoading||Object.values(regenLoading).some(Boolean)} style={{ fontSize:11, color:'#0C447C', background:'#E6F1FB', border:'1px solid #85B7EB', borderRadius:8, padding:'4px 10px', cursor:'pointer', fontFamily:'inherit', fontWeight:500 }}>↺ 미확정 재추천</button>
                 <button onClick={()=>showConfirm('미확정 코디만 초기화할까요? (확정된 코디는 유지)', ()=>{
                   const confirmed = weekOutfits.filter(o=>confirmedDates.has(o.date));
                   setWeekOutfits(confirmed);
@@ -1243,9 +1257,10 @@ export default function Home() {
                       const reader = new FileReader();
                       reader.onload = ev => {
                         const b64 = ev.target.result;
-                        ImageStore.set(c.id, b64);
-                        const updated = clothes.map(x => x.id===c.id ? {...x, image:b64, hasImage:true} : x);
-                        saveClothes(updated);
+                        ImageStore.set(c.id, b64).then(() => {
+                          const updated = clothes.map(x => x.id===c.id ? {...x, image:b64, hasImage:true} : x);
+                          saveClothes(updated);
+                        });
                       };
                       reader.readAsDataURL(e.target.files[0]);
                     }}/>
@@ -1309,16 +1324,21 @@ export default function Home() {
               아래 규칙은 직접 조정 가능해요.
             </div>
 
-            {/* 재착용 대기일 */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', borderTop:`1px solid ${S.border}` }}>
-              <div style={{ fontSize:14 }}>재착용 대기일
-                <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>착용 후 며칠간 추천 제외</span>
+            {/* 재착용 대기일 - 카테고리별 */}
+            <div style={{ padding:'12px 0', borderTop:`1px solid ${S.border}` }}>
+              <div style={{ fontSize:14, marginBottom:10 }}>재착용 대기일
+                <span style={{ fontSize:12, color:S.sub, display:'block', marginTop:2 }}>착용 후 며칠간 추천 제외 (카테고리별)</span>
               </div>
-              <div style={{ display:'flex', gap:6 }}>
-                {[1,2,3,5,7].map(d=>(
-                  <button key={d} onClick={()=>setSettings(s=>({...s,rewear_days:d}))} style={{ padding:'6px 10px', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${(settings.rewear_days||2)===d?S.accent:S.border}`, background:(settings.rewear_days||2)===d?S.accent:S.surface, color:(settings.rewear_days||2)===d?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{d}일</button>
-                ))}
-              </div>
+              {[['아우터','rewear_outer',1],['상의','rewear_top',2],['하의','rewear_bottom',3]].map(([label, key, def])=>(
+                <div key={key} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+                  <span style={{ fontSize:12, color:S.sub, width:40 }}>{label}</span>
+                  <div style={{ display:'flex', gap:4 }}>
+                    {[1,2,3,5,7].map(d=>(
+                      <button key={d} onClick={()=>setSettings(s=>({...s,[key]:d}))} style={{ padding:'5px 9px', borderRadius:8, fontSize:11, fontWeight:500, border:`1px solid ${(settings[key]??def)===d?S.accent:S.border}`, background:(settings[key]??def)===d?S.accent:S.surface, color:(settings[key]??def)===d?'#fff':S.sub, cursor:'pointer', fontFamily:'inherit' }}>{d}일</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* 추천제외 기준 별점 */}
